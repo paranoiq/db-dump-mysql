@@ -1,0 +1,29 @@
+{
+  "name": "paranoiq/db-dump",
+  "description": "Simple database structure dump tool",
+  "keywords": [
+    "database", "dump", "SQL", "MySQL"
+  ],
+  "homepage": "http://github.com/paranoiq/db-dump",
+  "license": ["proprietary"],
+  "authors": [
+    {
+      "name": "Vlasta Neubauer",
+      "email": "cz.paranoiq@gmail.com",
+      "homepage": "http://www.paranoiq.cz/"
+    }
+  ],
+  "require": {
+    "php": ">=7.0.0",
+    "nette/neon": "~2.3",
+    "wp-cli/php-cli-tools": "~0.11"
+  },
+  "require-dev": {
+    "tracy/tracy": "~2.3"
+  },
+  "repositories": [],
+  "config": {
+    "bin-dir": "bin",
+    "vendor-dir": "vendor"
+  }
+}
