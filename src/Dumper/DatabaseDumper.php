@@ -96,6 +96,8 @@ final class DatabaseDumper
     private function export()
     {
         umask(0002);
+        $this->cleanOutputDirectory();
+
         $databases = $this->adapter->getDatabaseList();
         foreach ($this->config->databases as $database) {
             $this->output(C::lyellow("\ndatabase: " . C::yellow($database) . "\n"));
@@ -110,10 +112,6 @@ final class DatabaseDumper
     private function dumpDatabase(string $database)
     {
         $this->adapter->use($database);
-
-        if ($this->config->write) {
-            $this->cleanDirectory(sprintf('%s/%s', $this->config->outputDir, $database));
-        }
 
         $skip = $this->config->skip ?: [];
         foreach (self::TYPES as $type) {
@@ -202,11 +200,17 @@ final class DatabaseDumper
         return $sql;
     }
 
-    private function cleanDirectory(string $path = null)
+    private function cleanOutputDirectory(string $path = null)
     {
+        if (!$this->config->write) {
+            return;
+        }
+        if ($path === null) {
+            $path = $this->config->outputDir;
+        }
         foreach (glob($path . '/*') as $path) {
             if (is_dir($path)) {
-                $this->cleanDirectory($path);
+                $this->cleanOutputDirectory($path);
                 rmdir($path);
             } elseif (is_file($path)) {
                 unlink($path);
@@ -216,7 +220,7 @@ final class DatabaseDumper
 
     private function createOutputTypeDirectory(string $database, string $type)
     {
-        if ($this->config->write) {
+        if ($this->config->write && !$this->config->singleFile && !$this->config->filePerDatabase) {
             $dir = sprintf('%s/%s/%ss', $this->config->outputDir, $database, $type);
             mkdir($dir, 0775, true);
         }
@@ -255,14 +259,36 @@ final class DatabaseDumper
 
     private function writeOutputFile(string $database, string $type, string $item, string $data)
     {
-        $file = sprintf('%s/%s/%ss/%s.sql', $this->config->outputDir, $database, $type, $item);
+        static $handlers = [];
 
-        if ($this->config->write) {
-            $result = file_put_contents($file, $data);
-            if ($result === false) {
-                die(sprintf('Error: Cannot write file %s.', $file));
-            }
+        if (!$this->config->write) {
+            return;
         }
+
+        if ($this->config->singleFile) {
+            if (!$handlers) {
+                $file = sprintf('%s/export.sql', $this->config->outputDir);
+                $handlers = $handler = fopen($file, 'w');
+            } else {
+                $handler = $handlers;
+            }
+        } elseif ($this->config->filePerDatabase) {
+            $file = sprintf('%s/%s.sql', $this->config->outputDir, $database);
+            if (!isset($handlers[$file])) {
+                $handlers[$file] = $handler = fopen($file, 'w');
+            } else {
+                $handler = $handlers[$file];
+            }
+        } else {
+            $file = sprintf('%s/%s/%ss/%s.sql', $this->config->outputDir, $database, $type, $item);
+            $handler = fopen($file, 'w');
+        }
+
+        if ($handler === false) {
+            die(sprintf('Error: Cannot write file %s.', $file));
+        }
+
+        fwrite($handler, $data);
     }
 
     /**
