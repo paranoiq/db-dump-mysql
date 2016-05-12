@@ -17,6 +17,7 @@ if (!file_exists(__DIR__ . '/vendor/autoload.php')) {
 require __DIR__ . '/vendor/autoload.php';
 require __DIR__ . '/src/Configurator.php';
 require __DIR__ . '/src/SimplePdo.php';
+require __DIR__ . '/src/Dumper/MysqlAdapter.php';
 require __DIR__ . '/src/Dumper/DatabaseDumper.php';
 require __DIR__ . '/src/Dumper/ViewFormatter.php';
 require_once __DIR__ . '/vendor/nette/neon/src/neon.php';
@@ -100,7 +101,8 @@ foreach ($config->config as $path) {
 try {
     $dsn = sprintf('mysql:host=%s;port=%d', $config->host, $config->port);
     $connection = new SimplePdo($dsn, $config->user, $config->password);
-    $dumper = new DatabaseDumper($connection, $config);
+    $adapter = new MysqlAdapter($connection);
+    $dumper = new DatabaseDumper($config, $adapter);
 
     $dumper->run();
 } catch (\PDOException $e) {

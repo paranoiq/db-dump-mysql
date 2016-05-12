@@ -39,16 +39,16 @@ final class DatabaseDumper
     const STATUS_CHANGED = ' (changed)';
     const STATUS_SAME    = '';
 
-    /** @var \Dogma\Tools\SimplePdo */
-    private $db;
-
     /** @var string[][] */
     private $config;
 
-    public function __construct(SimplePdo $db, Configurator $config)
+    /** @var \Dogma\Tools\Dumper\MysqlAdapter */
+    private $adapter;
+
+    public function __construct(Configurator $config, MysqlAdapter $adapter)
     {
-        $this->db = $db;
         $this->config = $config;
+        $this->adapter = $adapter;
     }
 
     public function run()
@@ -72,7 +72,7 @@ final class DatabaseDumper
 
     private function query(string $query) {
         try {
-            $result = $this->db->query($query);
+            $result = $this->adapter->query($query);
         } catch (\Throwable $e) {
             $this->output(C::white($e->getMessage(), C::RED));
             return;
@@ -96,10 +96,10 @@ final class DatabaseDumper
     private function export()
     {
         umask(0002);
-        $dbs = $this->getDatabaseList();
+        $databases = $this->adapter->getDatabaseList();
         foreach ($this->config->databases as $database) {
             $this->output(C::lyellow("\ndatabase: " . C::yellow($database) . "\n"));
-            if (!in_array($database, $dbs)) {
+            if (!in_array($database, $databases)) {
                 $this->output(C::lred("  not found. skipped!\n"));
                 continue;
             }
@@ -109,7 +109,7 @@ final class DatabaseDumper
 
     private function dumpDatabase(string $database)
     {
-        $this->db->exec('USE %', $database);
+        $this->adapter->use($database);
         if ($this->config->write) {
             $this->cleanDirectory(sprintf('%s/%s', $this->config->outputDir, $database));
         }
@@ -122,8 +122,8 @@ final class DatabaseDumper
             $inputTypeDir = sprintf('%s/%s/%ss', $this->config->inputDir, $database, $type);
             $outputTypeDir = sprintf('%s/%s/%ss', $this->config->outputDir, $database, $type);
 
-            $method = sprintf('get%sList', $type);
-            $newItems = call_user_func([$this, $method], $database);
+            $method = sprintf('get%sList', ucfirst($type));
+            $newItems = call_user_func([$this->adapter, $method], $database);
             $oldItems = $this->scanDirectory($inputTypeDir);
             if (!$newItems && !$oldItems) {
                 continue;
@@ -141,14 +141,26 @@ final class DatabaseDumper
                 if (in_array($item, $newItems)) {
                     $inputFile = sprintf('%s/%s.sql', $inputTypeDir, $item);
                     $outputFile = sprintf('%s/%s.sql', $outputTypeDir, $item);
-                    $method = sprintf('get%sDump', $type);
-                    $sql = "\n" . call_user_func([$this, $method], $item);
+
+                    $method = sprintf('dump%sStructure', ucfirst($type));
+                    $sql = "\n" . call_user_func([$this->adapter, $method], $item);
+
+                    if ($type === 'table' && $this->config->removeCharsets) {
+                        $sql = $this->adapter->removeCharsets($sql, $this->config->removeCharsets);
+                    }
+                    if ($type === 'table' && $this->config->removeCollations) {
+                        $sql = $this->adapter->removeCollations($sql, $this->config->removeCollations);
+                    }
+                    if ($type === 'view' && $this->config->formatViews) {
+                        $sql = $this->adapter->formatView($sql);
+                    }
                     if ($type === 'table' && !empty($this->config->data[$database][$item])) {
-                        list($data, $count) = $this->getDataDump($item);
+                        list($data, $count) = $this->adapter->dumpTableData($item);
                         $sql .= "\n\n" . $data;
                         //$result = $this->process(str_replace('.sql', '.data.sql', $file), $data . "\n");
                         $scannedItems[$i] = C::yellow($item . "($count)");
                     }
+
                     $result = $this->process($sql . "\n", $inputFile, $outputFile);
                 } else {
                     $result = C::lred(self::STATUS_REMOVED);
@@ -201,260 +213,6 @@ final class DatabaseDumper
         $sql = str_replace("\n", self::LINE_ENDINGS[$lineEnding], str_replace("\r", "\n", str_replace("\r\n", "\n", $sql)));
         $sql = str_replace("\t", $indent, str_replace('  ', "\t", $sql));
         return $sql;
-    }
-
-    /**
-     * Return list of databases
-     *
-     * @return string[]
-     */
-    public function getDatabaseList(): array
-    {
-        $list = $this->db->query('SHOW DATABASES')->fetchAll();
-
-        foreach ($list as &$database) {
-            $database = $database['Database'];
-        }
-
-        return $list;
-    }
-
-    /**
-     * Returns list of database tables
-     *
-     * @param string $database
-     * @return string[]
-     */
-    public function getTableList(string $database): array
-    {
-        $list = $this->db->query(
-            'SELECT TABLE_NAME FROM information_schema.TABLES
-            WHERE TABLE_TYPE = \'BASE TABLE\'
-                AND TABLE_SCHEMA = ?', $database)
-            ->fetchColumnAll('TABLE_NAME');
-
-        // fallback for system views (information_schema etc.)
-        if (count($list) === 0) {
-            $list = $this->db->query('SHOW TABLES FROM %', $database)->fetchColumnAll(0);
-        }
-
-        return $list;
-    }
-
-    /**
-     * Returns list of database views
-     *
-     * @param string $database
-     * @return string[]
-     */
-    public function getViewList(string $database): array
-    {
-        $list = $this->db->query(
-            'SELECT TABLE_NAME
-            FROM information_schema.VIEWS
-            WHERE TABLE_SCHEMA = ?', $database
-        )->fetchAll();
-
-        foreach ($list as &$view) {
-            $view = $view['TABLE_NAME'];
-        }
-
-        return $list;
-    }
-
-    /**
-     * Returns list of database functions
-     *
-     * @param string $database
-     * @return string[]
-     */
-    public function getFunctionList(string $database): array
-    {
-        $list = $this->db->query(
-            'SELECT SPECIFIC_NAME
-            FROM information_schema.ROUTINES
-            WHERE ROUTINE_TYPE = \'FUNCTION\'
-                AND ROUTINE_SCHEMA = ?', $database
-        )->fetchAll();
-
-        foreach ($list as &$function) {
-            $function = $function['SPECIFIC_NAME'];
-        }
-
-        return $list;
-    }
-
-    /**
-     * Returns list of database procedures
-     *
-     * @param string $database
-     * @return string[]
-     */
-    public function getProcedureList(string $database): array
-    {
-        $list = $this->db->query(
-            'SELECT ROUTINE_NAME
-            FROM information_schema.ROUTINES
-            WHERE ROUTINE_TYPE = \'PROCEDURE\'
-                AND ROUTINE_SCHEMA = ?', $database
-        )->fetchAll();
-
-        foreach ($list as &$procedure) {
-            $procedure = $procedure['ROUTINE_NAME'];
-        }
-
-        return $list;
-    }
-
-    /**
-     * Returns list of database triggers
-     *
-     * @param string $database
-     * @return string[]
-     */
-    public function getTriggerList(string $database): array
-    {
-        $list = $this->db->query(
-            'SELECT TRIGGER_NAME
-            FROM information_schema.TRIGGERS
-            WHERE TRIGGER_SCHEMA = ?', $database
-        )->fetchAll();
-
-        foreach ($list as &$trigger) {
-            $trigger = $trigger['TRIGGER_NAME'];
-        }
-
-        return $list;
-    }
-
-    /**
-     * Returns list of database events
-     *
-     * @param string $database
-     * @return string
-     */
-    public function getEventList(string $database): array
-    {
-        $list = $this->db->query(
-            'SELECT EVENT_NAME
-            FROM information_schema.EVENTS
-            WHERE EVENT_SCHEMA = ?', $database
-        )->fetchAll();
-
-        foreach ($list as &$event) {
-            $event = $event['EVENT_NAME'];
-        }
-
-        return $list;
-    }
-
-    /**
-     * Creates SQL CREATE TABLE statement
-     */
-    private function getTableDump(string $tableName): string
-    {
-        $data = $this->db->query('SHOW CREATE TABLE %', $tableName)->fetch();
-
-        $data = preg_replace('~AUTO_INCREMENT=\\d+ ~i', '', $data['Create Table'], 1);
-
-        if ($this->config->removeCharsets) {
-            foreach ($this->config->removeCharsets as $charset) {
-                $data = preg_replace('/ DEFAULT CHARSET=' . $charset . '/', '', $data);
-            }
-        }
-        if ($this->config->removeCollations) {
-            foreach ($this->config->removeCollations as $collation) {
-                $data = preg_replace('/ COLLATE[= ]?' . $collation . '/', '', $data);
-            }
-        }
-
-        return $data . ';';
-    }
-
-    /**
-     * Creates SQL INSERT statement for table data
-     */
-    private function getDataDump(string $tableName): string
-    {
-        $sql = 'INSERT INTO ' . $this->db->quoteName($tableName) . ' VALUES\n';
-        $result = $this->db->query('SELECT * FROM %', $tableName);
-
-        $r = 1;
-        foreach ($result as $row) {
-            $sql .= '(';
-            $v = 1;
-            foreach ($row as $value) {
-                $sql .= is_null($value) ? 'NULL' : is_numeric($value) ? $value : $this->db->quote($value);
-                if ($v < $row->count()) {
-                    $sql .= ', ';
-                }
-                ++$v;
-            }
-            $sql .= ')';
-            if ($r < $result->rowCount()) {
-                $sql .= ",\n";
-            }
-            ++$r;
-        }
-        $sql .= ';';
-
-        return [$sql, $result->rowCount()];
-    }
-
-    /**
-     * Creates pretty formatted SQL CREATE VIEW statement
-     */
-    private function getViewDump(string $viewName): string
-    {
-        $data = $this->db->query('SHOW CREATE VIEW %', $viewName)->fetch();
-
-        $view = $data['Create View'];
-        if ($this->config->formatViews) {
-            $view = ViewFormatter::format($view);
-        }
-
-        return $view . ';';
-    }
-
-    /**
-     * @param string
-     * @return string SQL CREATE FUNCTION statement
-     */
-    private function getFunctionDump($functionName)
-    {
-        $data = $this->db->query('SHOW CREATE FUNCTION %', $functionName)->fetch();
-
-        return $data['Create Function'] . ';';
-    }
-    
-    /**
-     * Creates SQL CREATE PROCEDURE statement
-     */
-    private function getProcedureDump(string $procedureName): string
-    {
-        $data = $this->db->query('SHOW CREATE PROCEDURE %', $procedureName)->fetch();
-
-        return $data['Create Procedure'] . ';';
-    }
-
-    /**
-     * Creates SQL CREATE TRIGGER statement
-     */
-    private function getTriggerDump(string $triggerName): string
-    {
-        $data = $this->db->query('SHOW CREATE TRIGGER %', $triggerName)->fetch();
-
-        return $data['SQL Original Statement'] . ';';
-    }
-
-    /**
-     * Creates SQL CREATE EVENT statement
-     */
-    private function getEventDump(string $eventName): string
-    {
-        $data = $this->db->query('SHOW CREATE EVENT %', $eventName)->fetchColumn();
-
-        return $data['Create Event'] . ';';
     }
 
     /**
