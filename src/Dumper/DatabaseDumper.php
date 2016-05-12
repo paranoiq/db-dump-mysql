@@ -110,27 +110,25 @@ final class DatabaseDumper
     private function dumpDatabase(string $database)
     {
         $this->adapter->use($database);
+
         if ($this->config->write) {
             $this->cleanDirectory(sprintf('%s/%s', $this->config->outputDir, $database));
         }
+
         $skip = $this->config->skip ?: [];
         foreach (self::TYPES as $type) {
-            if (in_array($type . 's', $skip)) {
+            if (in_array($type, $skip)) {
                 continue;
             }
-
-            $inputTypeDir = sprintf('%s/%s/%ss', $this->config->inputDir, $database, $type);
-            $outputTypeDir = sprintf('%s/%s/%ss', $this->config->outputDir, $database, $type);
 
             $method = sprintf('get%sList', ucfirst($type));
             $newItems = call_user_func([$this->adapter, $method], $database);
-            $oldItems = $this->scanDirectory($inputTypeDir);
+            $oldItems = $this->scanInputTypeDirectory($database, $type);
             if (!$newItems && !$oldItems) {
                 continue;
             }
-
-            if ($this->config->write && $newItems) {
-                mkdir($outputTypeDir, 0775, true);
+            if ($newItems) {
+                $this->createOutputTypeDirectory($database, $type);
             }
 
             $allItems = array_unique(array_merge($oldItems, $newItems));
@@ -139,9 +137,6 @@ final class DatabaseDumper
             $scannedItems = [];
             foreach ($allItems as $i => $item) {
                 if (in_array($item, $newItems)) {
-                    $inputFile = sprintf('%s/%s.sql', $inputTypeDir, $item);
-                    $outputFile = sprintf('%s/%s.sql', $outputTypeDir, $item);
-
                     $method = sprintf('dump%sStructure', ucfirst($type));
                     $sql = "\n" . call_user_func([$this->adapter, $method], $item);
 
@@ -157,11 +152,10 @@ final class DatabaseDumper
                     if ($type === 'table' && !empty($this->config->data[$database][$item])) {
                         list($data, $count) = $this->adapter->dumpTableData($item);
                         $sql .= "\n\n" . $data;
-                        //$result = $this->process(str_replace('.sql', '.data.sql', $file), $data . "\n");
                         $scannedItems[$i] = C::yellow($item . "($count)");
                     }
 
-                    $result = $this->process($sql . "\n", $inputFile, $outputFile);
+                    $result = $this->process($database, $type, $item, $sql . "\n");
                 } else {
                     $result = C::lred(self::STATUS_REMOVED);
                     $item = C::gray($item);
@@ -176,33 +170,26 @@ final class DatabaseDumper
         }
     }
 
-    /**
-     * Process result
-     */
-    private function process(string $sql, string $inputFile, string $outputFile): string
+    private function process(string $database, string $type, string $item, string $sql)
     {
         $sql = $this->normalizeOutput($sql, $this->config->lineEndings, $this->config->indentation);
 
-        $result = '';
-        if (!file_exists($inputFile)) {
-            $result .= C::lgreen(self::STATUS_NEW);
+        $message = '';
+        $previousSql = $this->readInputFile($database, $type, $item);
+        if ($previousSql === null) {
+            $message .= C::lgreen(self::STATUS_NEW);
         } else {
-            $old = $this->normalizeOutput(file_get_contents($inputFile), $this->config->lineEndings, $this->config->indentation);
-            if ($old !== $sql) {
-                $result .= C::yellow(self::STATUS_CHANGED);
+            $previousNormalizedSql = $this->normalizeOutput($previousSql, $this->config->lineEndings, $this->config->indentation);
+            if ($previousNormalizedSql !== $sql) {
+                $message .= C::yellow(self::STATUS_CHANGED);
             } else {
-                $result .= C::gray(self::STATUS_SAME);
+                $message .= C::gray(self::STATUS_SAME);
             }
         }
 
-        if ($this->config->write) {
-            $res = file_put_contents($outputFile, $sql);
-            if ($res === false) {
-                die(sprintf('Error: Cannot write file %s.', $outputFile));
-            }
-        }
+        $this->writeOutputFile($database, $type, $item, $sql);
 
-        return $result;
+        return $message;
     }
 
     private function normalizeOutput(string $sql, string $lineEnding, string $indent)
@@ -215,15 +202,7 @@ final class DatabaseDumper
         return $sql;
     }
 
-    /**
-     * @param string $string
-     */
-    private function output(string $string)
-    {
-        echo $string;
-    }
-
-    private function cleanDirectory(string $path)
+    private function cleanDirectory(string $path = null)
     {
         foreach (glob($path . '/*') as $path) {
             if (is_dir($path)) {
@@ -235,15 +214,63 @@ final class DatabaseDumper
         }
     }
 
-    /**
-     * @param string $path
-     * @return string[]
-     */
-    private function scanDirectory(string $path): array
+    private function createOutputTypeDirectory(string $database, string $type)
     {
+        if ($this->config->write) {
+            $dir = sprintf('%s/%s/%ss', $this->config->outputDir, $database, $type);
+            mkdir($dir, 0775, true);
+        }
+    }
+
+    private function scanInputTypeDirectory(string $database, string $type): array
+    {
+        $dir = sprintf('%s/%s/%ss', $this->config->inputDir, $database, $type);
+
         return array_map(function (string $path) {
             return basename($path, '.sql');
-        }, glob($path . '/*'));
+        }, glob($dir . '/*'));
+    }
+
+    /**
+     * @param string $database
+     * @param string $type
+     * @param string $item
+     * @return string|null
+     */
+    private function readInputFile(string $database, string $type, string $item)
+    {
+        $file = sprintf('%s/%s/%ss/%s.sql', $this->config->inputDir, $database, $type, $item);
+
+        if (!file_exists($file)) {
+            return null;
+        }
+
+        $result = file_get_contents($file);
+        if ($result === false) {
+            die(sprintf('Error: Cannot read file %s.', $file));
+        }
+
+        return $result;
+    }
+
+    private function writeOutputFile(string $database, string $type, string $item, string $data)
+    {
+        $file = sprintf('%s/%s/%ss/%s.sql', $this->config->outputDir, $database, $type, $item);
+
+        if ($this->config->write) {
+            $result = file_put_contents($file, $data);
+            if ($result === false) {
+                die(sprintf('Error: Cannot write file %s.', $file));
+            }
+        }
+    }
+
+    /**
+     * @param string $string
+     */
+    private function output(string $string)
+    {
+        echo $string;
     }
 
 }
