@@ -18,6 +18,7 @@ require __DIR__ . '/vendor/autoload.php';
 require __DIR__ . '/src/Configurator.php';
 require __DIR__ . '/src/SimplePdo.php';
 require __DIR__ . '/src/Dumper/MysqlAdapter.php';
+require __DIR__ . '/src/Dumper/IoAdapter.php';
 require __DIR__ . '/src/Dumper/DatabaseDumper.php';
 require __DIR__ . '/src/Dumper/ViewFormatter.php';
 require_once __DIR__ . '/vendor/nette/neon/src/neon.php';

@@ -42,6 +42,9 @@ final class DatabaseDumper
     /** @var string[][] */
     private $config;
 
+    /** @var \Dogma\Tools\Dumper\IoAdapter */
+    private $io;
+
     /** @var \Dogma\Tools\Dumper\MysqlAdapter */
     private $adapter;
 
@@ -49,6 +52,7 @@ final class DatabaseDumper
     {
         $this->config = $config;
         $this->adapter = $adapter;
+        $this->io = new IoAdapter($config);
     }
 
     public function run()
@@ -95,8 +99,7 @@ final class DatabaseDumper
 
     private function export()
     {
-        umask(0002);
-        $this->cleanOutputDirectory();
+        $this->io->cleanOutputDirectory();
 
         $databases = $this->adapter->getDatabaseList();
         foreach ($this->config->databases as $database) {
@@ -121,12 +124,12 @@ final class DatabaseDumper
 
             $method = sprintf('get%sList', ucfirst($type));
             $newItems = call_user_func([$this->adapter, $method], $database);
-            $oldItems = $this->scanInputTypeDirectory($database, $type);
+            $oldItems = $this->io->scanInputTypeDirectory($database, $type);
             if (!$newItems && !$oldItems) {
                 continue;
             }
             if ($newItems) {
-                $this->createOutputTypeDirectory($database, $type);
+                $this->io->createOutputTypeDirectory($database, $type);
             }
 
             $allItems = array_unique(array_merge($oldItems, $newItems));
@@ -173,7 +176,7 @@ final class DatabaseDumper
         $sql = $this->normalizeOutput($sql, $this->config->lineEndings, $this->config->indentation);
 
         $message = '';
-        $previousSql = $this->readInputFile($database, $type, $item);
+        $previousSql = $this->io->readInputFile($database, $type, $item);
         if ($previousSql === null) {
             $message .= C::lgreen(self::STATUS_NEW);
         } else {
@@ -185,7 +188,7 @@ final class DatabaseDumper
             }
         }
 
-        $this->writeOutputFile($database, $type, $item, $sql);
+        $this->io->writeOutputFile($database, $type, $item, $sql);
 
         return $message;
     }
@@ -198,97 +201,6 @@ final class DatabaseDumper
         $sql = str_replace("\n", self::LINE_ENDINGS[$lineEnding], str_replace("\r", "\n", str_replace("\r\n", "\n", $sql)));
         $sql = str_replace("\t", $indent, str_replace('  ', "\t", $sql));
         return $sql;
-    }
-
-    private function cleanOutputDirectory(string $path = null)
-    {
-        if (!$this->config->write) {
-            return;
-        }
-        if ($path === null) {
-            $path = $this->config->outputDir;
-        }
-        foreach (glob($path . '/*') as $path) {
-            if (is_dir($path)) {
-                $this->cleanOutputDirectory($path);
-                rmdir($path);
-            } elseif (is_file($path)) {
-                unlink($path);
-            }
-        }
-    }
-
-    private function createOutputTypeDirectory(string $database, string $type)
-    {
-        if ($this->config->write && !$this->config->singleFile && !$this->config->filePerDatabase) {
-            $dir = sprintf('%s/%s/%ss', $this->config->outputDir, $database, $type);
-            mkdir($dir, 0775, true);
-        }
-    }
-
-    private function scanInputTypeDirectory(string $database, string $type): array
-    {
-        $dir = sprintf('%s/%s/%ss', $this->config->inputDir, $database, $type);
-
-        return array_map(function (string $path) {
-            return basename($path, '.sql');
-        }, glob($dir . '/*'));
-    }
-
-    /**
-     * @param string $database
-     * @param string $type
-     * @param string $item
-     * @return string|null
-     */
-    private function readInputFile(string $database, string $type, string $item)
-    {
-        $file = sprintf('%s/%s/%ss/%s.sql', $this->config->inputDir, $database, $type, $item);
-
-        if (!file_exists($file)) {
-            return null;
-        }
-
-        $result = file_get_contents($file);
-        if ($result === false) {
-            die(sprintf('Error: Cannot read file %s.', $file));
-        }
-
-        return $result;
-    }
-
-    private function writeOutputFile(string $database, string $type, string $item, string $data)
-    {
-        static $handlers = [];
-
-        if (!$this->config->write) {
-            return;
-        }
-
-        if ($this->config->singleFile) {
-            if (!$handlers) {
-                $file = sprintf('%s/export.sql', $this->config->outputDir);
-                $handlers = $handler = fopen($file, 'w');
-            } else {
-                $handler = $handlers;
-            }
-        } elseif ($this->config->filePerDatabase) {
-            $file = sprintf('%s/%s.sql', $this->config->outputDir, $database);
-            if (!isset($handlers[$file])) {
-                $handlers[$file] = $handler = fopen($file, 'w');
-            } else {
-                $handler = $handlers[$file];
-            }
-        } else {
-            $file = sprintf('%s/%s/%ss/%s.sql', $this->config->outputDir, $database, $type, $item);
-            $handler = fopen($file, 'w');
-        }
-
-        if ($handler === false) {
-            die(sprintf('Error: Cannot write file %s.', $file));
-        }
-
-        fwrite($handler, $data);
     }
 
     /**
