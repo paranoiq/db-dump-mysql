@@ -2,10 +2,10 @@
 
 namespace Dogma\Tools\Dumper;
 
-use cli\Table;
 use Dogma\Tools\Colors as C;
 use Dogma\Tools\Configurator;
-use Dogma\Tools\SimplePdo;
+use Dogma\Tools\Console;
+use Dogma\Tools\SimplePdoResult;
 
 /**
  * Dumps tables, views, functions, procedures, triggers and events from database
@@ -26,12 +26,12 @@ final class DatabaseDumper
     ];
 
     const TYPES = [
-        'table',
-        'view',
-        'function',
-        'procedure',
-        'trigger',
-        'event',
+        'tables',
+        'views',
+        'functions',
+        'procedures',
+        'triggers',
+        'events',
     ];
 
     const STATUS_NEW     = ' (new)';
@@ -46,75 +46,159 @@ final class DatabaseDumper
     private $io;
 
     /** @var \Dogma\Tools\Dumper\MysqlAdapter */
-    private $adapter;
+    private $db;
 
-    public function __construct(Configurator $config, MysqlAdapter $adapter)
+    /** @var \Dogma\Tools\Console */
+    private $console;
+
+    /** @var \Dogma\Tools\Dumper\DataDumper */
+    private $dataDumper;
+
+    public function __construct(Configurator $config, MysqlAdapter $db, Console $console)
     {
         $this->config = $config;
-        $this->adapter = $adapter;
-        $this->io = new IoAdapter($config);
+        $this->db = $db;
+        $this->console = $console;
+
+        $filePerDatabaseInit = function (string $database) {
+            $this->io->write("SET NAMES 'utf8';\n", $database);
+            $this->io->write("SET sql_mode = '';\n", $database);
+            $this->io->write("SET foreign_key_checks=OFF;\n", $database);
+            $this->io->write("USE " . $this->db->quoteName($database) . ";\n", $database);
+        };
+        $singleFileInit = function () {
+            $this->io->write("SET NAMES 'utf8';\n");
+            $this->io->write("SET sql_mode= '';\n");
+            $this->io->write('SET foreign_key_checks=OFF;');
+        };
+        $singleFileDatabaseInit = function (string $database) {
+            $this->io->write("USE " . $this->db->quoteName($database) . ";\n");
+        };
+
+        $this->io = new IoAdapter($config, $filePerDatabaseInit, $singleFileInit, $singleFileDatabaseInit);
+        $this->dataDumper = new DataDumper($db, $this->io, $console);
     }
 
     public function run()
     {
         $time = microtime(true);
 
+        $this->console->write(
+            C::gray('Server: '), $this->config->host, ':', $this->config->port,
+            C::gray(', user: '), $this->config->user,
+            C::gray(', database: '), $this->config->query ? $this->config->databases[0] : implode(', ', $this->config->databases)
+        )->ln(2);
+
         if ($this->config->query) {
-            $this->output("Query: ". C::black(' ' . $this->config->query . ' ', C::YELLOW) . "\n\n");
             $this->query($this->config->query);
-        } elseif ($this->config->write) {
-            $this->output("Exporting database structure\n");
-            $this->export();
         } else {
-            $this->output("Running in read-only mode\n");
             $this->export();
         }
 
         $time = microtime(true) - $time;
-        $this->output("\nFinished in: " . ($time > 1000 ? round($time / 1000, 3) . ' s' : round($time, 3) . ' ms'));
+        $this->console->ln()->write(C::gray('Finished in: ') . $this->formatTime($time));
     }
 
-    private function query(string $query) {
+    private function query(string $query)
+    {
+        $this->console->write(C::gray('Query: '), C::black(' ' . $this->config->query . ' ', C::YELLOW))->ln(2);
+
+        $calcFoundRows = false;
+        if (substr($query, -1) === '+') {
+            $query = preg_replace('/^(select) /i', '\\1 SQL_CALC_FOUND_ROWS ', substr($query, 0, -1));
+            $calcFoundRows = true;
+        }
+
         try {
-            $result = $this->adapter->query($query);
+            if ($this->config->databases) {
+                $this->db->query('USE ' . $this->config->databases[0]);
+            }
+            $time = microtime(true);
+            $result = $this->db->query($query);
         } catch (\Throwable $e) {
-            $this->output(C::white($e->getMessage(), C::RED));
+            $this->console->ln(2)->write(C::white($e->getMessage(), C::RED));
             return;
         }
-        $table = new Table();
-        foreach ($result as $i => $row) {
-            if ($i === 0) {
-                $headers = [];
-                foreach ($row as $column => $value) {
-                    $headers[$column] = $column;
-                }
-                $table->setHeaders($headers);
-            }
-            $table->addRow(array_map(function ($value) {
-                return trim($value);
-            }, $row));
+
+        $time = microtime(true) - $time;
+        $this->console->write(C::gray("Time: ") . $this->formatTime($time) . C::gray(', rows: ') . $result->rowCount());
+        if ($calcFoundRows) {
+            $totalRows = $this->db->query('SELECT FOUND_ROWS() AS rows')->fetchColumn('rows');
+            $this->console->write(C::gray(', total rows: ') . $totalRows);
         }
-        @$table->display();
+
+        $this->console->ln();
+        if ($result->rowCount() > 0) {
+            $this->displayResult($result);
+        }
+    }
+
+    private function formatTime(float $time): string
+    {
+        return $time > 1 ? round($time, 3) . ' s' : round($time * 1000, 3) . ' ms';
+    }
+
+    private function displayResult(SimplePdoResult $result)
+    {
+        $columns = Console::getTerminalWidth();
+
+        $formatter = new TableFormatter($columns);
+        $formatter->render($result);
     }
 
     private function export()
     {
+        if ($this->config->write) {
+            $this->console->writeLn('Exporting database structure');
+        } else {
+            $this->console->writeLn('Running in read-only mode');
+        }
+
         $this->io->cleanOutputDirectory();
 
-        $databases = $this->adapter->getDatabaseList();
-        foreach ($this->config->databases as $database) {
-            $this->output(C::lyellow("\ndatabase: " . C::yellow($database) . "\n"));
-            if (!in_array($database, $databases)) {
-                $this->output(C::lred("  not found. skipped!\n"));
-                continue;
+        if ($this->config->singleFile) {
+            $this->io->write('SET foreign_key_checks=OFF;');
+        }
+        foreach ($this->getDatabases() as $database) {
+            $this->console->ln()->writeLn(C::lyellow('database: '), $database);
+            $this->dumpStructure($database);
+        }
+
+        if ($this->config->write && $this->config->data) {
+            list($exportDependencies, $dep) = $this->dataDumper->readDataConfig($this->config->data);
+            if ($exportDependencies) {
+                $this->console->ln()->writeLn('Scanning for dependencies');
+                list($fk, $primary) = $this->dataDumper->scanStructure($this->config->databases);
+                $this->console->writeLn('  ' . $fk . ' foreign keys found');
+                if ($primary) {
+                    $this->console->writeLn('  ' . $primary . ' primary key dependencies found');
+                }
+                if ($dep) {
+                    $this->console->writeLn('  ' . $dep . ' dependencies configured');
+                }
             }
-            $this->dumpDatabase($database);
+            $this->console->ln()->writeLn('Exporting database data')->ln();
+            $this->dataDumper->dumpData();
         }
     }
 
-    private function dumpDatabase(string $database)
+    private function getDatabases(bool $alert = true)
     {
-        $this->adapter->use($database);
+        $config = $this->config->databases;
+        $real = $this->db->getDatabases();
+        $missing = array_diff($config, $real);
+        if ($missing && $alert) {
+            foreach ($missing as $database) {
+                $this->console->write(C::lred(sprintf('Database `%s` not found. Skipped!', $database)))->ln();
+            }
+        }
+
+        return array_intersect($config, $real);
+    }
+
+    private function dumpStructure(string $database)
+    {
+        $this->db->use($database);
 
         $skip = $this->config->skip ?: [];
         foreach (self::TYPES as $type) {
@@ -122,8 +206,8 @@ final class DatabaseDumper
                 continue;
             }
 
-            $method = sprintf('get%sList', ucfirst($type));
-            $newItems = call_user_func([$this->adapter, $method], $database);
+            $method = sprintf('get%s', ucfirst($type));
+            $newItems = call_user_func([$this->db, $method], $database);
             $oldItems = $this->io->scanInputTypeDirectory($database, $type);
             if (!$newItems && !$oldItems) {
                 continue;
@@ -138,22 +222,27 @@ final class DatabaseDumper
             $scannedItems = [];
             foreach ($allItems as $i => $item) {
                 if (in_array($item, $newItems)) {
-                    $method = sprintf('dump%sStructure', ucfirst($type));
-                    $sql = "\n" . call_user_func([$this->adapter, $method], $item);
+                    $method = sprintf('dump%sStructure', ucfirst(rtrim($type, 's')));
+                    $sql = "\n" . call_user_func([$this->db, $method], $item);
 
-                    if ($type === 'table' && $this->config->removeCharsets) {
-                        $sql = $this->adapter->removeCharsets($sql, $this->config->removeCharsets);
+                    if ($type === 'table') {
+                        if ($this->config->removeCharsets) {
+                            $sql = $this->db->removeCharsets($sql, $this->config->removeCharsets);
+                        }
+                        if ($this->config->removeCollations) {
+                            $sql = $this->db->removeCollations($sql, $this->config->removeCollations);
+                        }
+                        if ($this->config->removeSizes === 'all') {
+                            $sql = $this->db->removeSizes($sql, true);
+                        } elseif ($this->config->removeSizes === 'default') {
+                            $sql = $this->db->removeSizes($sql, false);
+                        }
                     }
-                    if ($type === 'table' && $this->config->removeCollations) {
-                        $sql = $this->adapter->removeCollations($sql, $this->config->removeCollations);
+                    if ($type === 'view' && $this->config->prettyFormat) {
+                        $sql = $this->db->formatView($sql);
                     }
-                    if ($type === 'view' && $this->config->formatViews) {
-                        $sql = $this->adapter->formatView($sql);
-                    }
-                    if ($type === 'table' && !empty($this->config->data[$database][$item])) {
-                        list($data, $count) = $this->adapter->dumpTableData($item);
-                        $sql .= "\n\n" . $data;
-                        $scannedItems[$i] = C::yellow($item . "($count)");
+                    if ($type === 'event' && $this->config->prettyFormat) {
+                        $sql = $this->db->formatEvent($sql);
                     }
 
                     $result = $this->process($database, $type, $item, $sql . "\n");
@@ -163,20 +252,20 @@ final class DatabaseDumper
                 }
                 $scannedItems[$i] = $item . $result;
             }
-            $this->output(C::lyellow(sprintf("  %ss (%d):\n    ", $type, count($newItems))));
-            $this->output(implode(
+            $this->console->write(C::lyellow(sprintf("  %s (%d):\n    ", $type, count($newItems))));
+            $this->console->write(implode(
                 (!$this->config->short ? "\n    " : ", "),
                 array_map([C::class, 'lgray'], $scannedItems)
-            ) . "\n");
+            ))->ln();
         }
     }
 
-    private function process(string $database, string $type, string $item, string $sql)
+    public function process(string $database, string $type, string $item, string $sql)
     {
         $sql = $this->normalizeOutput($sql, $this->config->lineEndings, $this->config->indentation);
 
         $message = '';
-        $previousSql = $this->io->readInputFile($database, $type, $item);
+        $previousSql = $this->io->read($database, $type, $item);
         if ($previousSql === null) {
             $message .= C::lgreen(self::STATUS_NEW);
         } else {
@@ -188,7 +277,7 @@ final class DatabaseDumper
             }
         }
 
-        $this->io->writeOutputFile($database, $type, $item, $sql);
+        $this->io->write($sql, $database, $type, $item);
 
         return $message;
     }
@@ -200,15 +289,8 @@ final class DatabaseDumper
         }
         $sql = str_replace("\n", self::LINE_ENDINGS[$lineEnding], str_replace("\r", "\n", str_replace("\r\n", "\n", $sql)));
         $sql = str_replace("\t", $indent, str_replace('  ', "\t", $sql));
-        return $sql;
-    }
 
-    /**
-     * @param string $string
-     */
-    private function output(string $string)
-    {
-        echo $string;
+        return $sql;
     }
 
 }

@@ -1,4 +1,4 @@
-<?php declare(strict_types = 1);
+<?php
 
 namespace Dogma\Tools\Dumper;
 
@@ -10,9 +10,28 @@ class IoAdapter
     /** @var \Dogma\Tools\Configurator */
     private $config;
 
-    public function __construct(Configurator $config)
-    {
+    /** @var \Closure(string) */
+    private $filePerDatabaseInit;
+
+    /** @var \Closure */
+    private $singleFileInit;
+
+    /** @var \Closure(string) */
+    private $singleFileDatabaseInit;
+
+    /** @var string */
+    private $lastDatabase;
+
+    public function __construct(
+        Configurator $config,
+        \Closure $filePerDatabaseInit,
+        \Closure $singleFileInit,
+        \Closure $databaseInit
+    ) {
         $this->config = $config;
+        $this->filePerDatabaseInit = $filePerDatabaseInit;
+        $this->singleFileInit = $singleFileInit;
+        $this->singleFileDatabaseInit = $databaseInit;
     }
 
     public function cleanOutputDirectory(string $path = null)
@@ -36,15 +55,17 @@ class IoAdapter
     public function createOutputTypeDirectory(string $database, string $type)
     {
         if ($this->config->write && !$this->config->singleFile && !$this->config->filePerDatabase) {
-            $dir = sprintf('%s/%s/%ss', $this->config->outputDir, $database, $type);
+            $dir = sprintf('%s/%s/%s', $this->config->outputDir, $database, $type);
             umask(0002);
-            mkdir($dir, 0775, true);
+            if (!is_dir($dir)) {
+                mkdir($dir, 0775, true);
+            }
         }
     }
 
     public function scanInputTypeDirectory(string $database, string $type): array
     {
-        $dir = sprintf('%s/%s/%ss', $this->config->inputDir, $database, $type);
+        $dir = sprintf('%s/%s/%s', $this->config->inputDir, $database, $type);
 
         return array_map(function (string $path) {
             return basename($path, '.sql');
@@ -57,9 +78,9 @@ class IoAdapter
      * @param string $item
      * @return string|null
      */
-    public function readInputFile(string $database, string $type, string $item)
+    public function read(string $database, string $type, string $item)
     {
-        $file = sprintf('%s/%s/%ss/%s.sql', $this->config->inputDir, $database, $type, $item);
+        $file = sprintf('%s/%s/%s/%s.sql', $this->config->inputDir, $database, $type, $item);
 
         if (!file_exists($file)) {
             return null;
@@ -73,7 +94,7 @@ class IoAdapter
         return $result;
     }
 
-    public function writeOutputFile(string $database, string $type, string $item, string $data)
+    public function write(string $data, string $database = null, string $type = null, string $item = null)
     {
         static $handlers = [];
 
@@ -86,6 +107,11 @@ class IoAdapter
                 $file = sprintf('%s/export.sql', $this->config->outputDir);
                 umask(0002);
                 $handlers = $handler = fopen($file, 'w');
+                ($this->singleFileInit)();
+                if ($this->lastDatabase !== $database) {
+                    ($this->singleFileDatabaseInit)($database);
+                    $this->lastDatabase = $database;
+                }
             } else {
                 $handler = $handlers;
             }
@@ -94,13 +120,18 @@ class IoAdapter
             if (!isset($handlers[$file])) {
                 umask(0002);
                 $handlers[$file] = $handler = fopen($file, 'w');
+                ($this->filePerDatabaseInit)($database);
             } else {
                 $handler = $handlers[$file];
             }
         } else {
-            $file = sprintf('%s/%s/%ss/%s.sql', $this->config->outputDir, $database, $type, $item);
+            $file = sprintf('%s/%s/%s/%s.sql', $this->config->outputDir, $database, $type, $item);
             umask(0002);
-            $handler = fopen($file, 'w');
+            if ($type === 'data') {
+                $handler = fopen($file, 'a');
+            } else {
+                $handler = fopen($file, 'w');
+            }
         }
 
         if ($handler === false) {

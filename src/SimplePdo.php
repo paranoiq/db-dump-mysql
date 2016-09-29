@@ -98,6 +98,21 @@ class SimplePdo extends \PDO
         $statement->close();
     }
 
+    public function quote($value, $parameterType = null): string
+    {
+        if (is_null($value)) {
+            return 'NULL';
+        } elseif (is_int($value) || is_float($value)) {
+            return (string) $value;
+        } elseif (is_bool($value)) {
+            return $value ? '1' : '0';
+        } elseif ($parameterType !== null && $parameterType === 'binary') {
+            return 'UNHEX(\'' . bin2hex($value) . '\')';
+        } else {
+            return parent::quote($value);
+        }
+    }
+
     public function quoteName(string $name): string
     {
         return '`' . str_replace('`', '``', $name) . '`';
