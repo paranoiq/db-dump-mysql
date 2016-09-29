@@ -2,7 +2,7 @@
 
 namespace Dogma\Tools\Dumper;
 
-final class ViewFormatter
+final class DumpFormatter
 {
 
     /** @var string[] Patterns to format SQL statements */
@@ -44,7 +44,7 @@ final class ViewFormatter
         "\n  end",
     ];
 
-    public static function format(string $old): string
+    public static function formatView(string $old): string
     {
         $old = preg_replace(self::$search, self::$replace, $old);
 
@@ -76,6 +76,11 @@ final class ViewFormatter
         }, $new);
 
         return $new;
+    }
+
+    public static function formatEvent(string $old): string
+    {
+        return str_replace([' ON ', ' ENABLE ', ' DO '], ["\n  ON ", "\nENABLE ", "\nDO "], $old);
     }
 
 }
