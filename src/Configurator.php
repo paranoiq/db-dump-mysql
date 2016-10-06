@@ -8,7 +8,8 @@ use Nette\Neon\Neon;
 final class Configurator extends \StdClass
 {
 
-    const FLAG = 'bool';
+    const FLAG = 'flag';
+    const FLAG_VALUE = 'flag-value';
     const VALUE = 'value';
     const VALUES = 'values';
     const ENUM = 'enum';
@@ -51,7 +52,7 @@ final class Configurator extends \StdClass
             @list($short, $type, $info, $hint, $values) = $config;
             $row .= $short ? C::white("  -$short") : '    ';
             $row .= C::white(" --$name");
-            if ($type === self::VALUE || $type === self::VALUES || $type === self::ENUM || $type === self::SET) {
+            if ($type === self::FLAG_VALUE || $type === self::VALUE || $type === self::VALUES || $type === self::ENUM || $type === self::SET) {
                 $row .= C::gray($hint ? " <$hint>" : ' <value>');
             }
             $row = C::padString($row, 23);
@@ -77,19 +78,34 @@ final class Configurator extends \StdClass
     public function loadCliArguments()
     {
         $short = [];
+        $shortAlt = [];
         $long = [];
+        $longAlt = [];
         foreach ($this->arguments as $name => $config) {
             if (is_string($config)) {
                 continue;
             }
             list($shortcut, $type, ) = $config;
-            if ($shortcut) {
-                $short[] = $shortcut . ($type === self::FLAG ? '' : ':');
+            if ($type === self::FLAG_VALUE) {
+                if ($shortcut) {
+                    $short[] = $shortcut . '';
+                    $shortAlt[] = $shortcut . ':';
+                }
+                $long[] = $name . '';
+                $longAlt[] = $name . ':';
+            } else {
+                if ($shortcut) {
+                    $short[] = $shortcut . ($type === self::FLAG ? '' : ':');
+                }
+                $long[] = $name . ($type === self::FLAG ? '' : ':');
             }
-            $long[] = $name . ($type === self::FLAG ? '' : ':');
         }
 
         $values = getopt(implode('', $short), $long);
+        if ($shortAlt || $longAlt) {
+            $altValues = getopt(implode('', $shortAlt), $longAlt);
+            $values = array_merge($values, $altValues);
+        }
         foreach ($this->arguments as $name => list($shortcut, $type, )) {
             if (is_numeric($name)) {
                 continue;

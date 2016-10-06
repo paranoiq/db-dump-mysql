@@ -44,7 +44,7 @@ $arguments = [
     'read' =>           ['r', Configurator::FLAG, 'show differences against existing dump'],
     'write' =>          ['W', Configurator::FLAG, 'write outputs (rewrite existing dump)'],
     'query' =>          ['q', Configurator::VALUE, 'query the MySQL server and display results', 'SQL code'],
-    'help' =>           ['', Configurator::FLAG, 'show help'],
+    'help' =>           ['', Configurator::FLAG_VALUE, 'show help', 'command'],
     'license' =>        ['', Configurator::FLAG, 'show license'],
         'Database connection:',
     'host' =>           ['h', Configurator::VALUE, 'server host', 'address'],
@@ -95,16 +95,13 @@ $console->writeLn(C::lgreen("| . | .'|  _| .'| . | .'|_ -| -_|  | . | | |     | 
 $console->writeLn(C::lgreen("|___|__,|_| |__,|___|__,|___|___|  |___|___|_|_|_|  _|___|_|  "));
 $console->writeLn($created .               C::lgreen("                        |_|          "))->ln();
 
-if ($config->help || (!$config->hasValues() && (!$config->config))) {
+if ($config->help === true || (!$config->hasValues() && (!$config->config))) {
     $console->write('Usage: php dump-db.php [options]')->ln(2);
     $console->write($config->renderHelp());
-}
-if ($config->help) {
     $console->writeLn('This tool was crated for generating documentation and development data sets.');
     $console->writeLn(C::red('DO NOT USE IT FOR DATABASE BACKUPS!'));
     exit;
-}
-if ($config->license) {
+} elseif ($config->license || $config->help === 'license') {
     $console->writeFile(__DIR__ . '/license.md');
     exit;
 }
