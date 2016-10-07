@@ -24,6 +24,9 @@ final class Configurator extends \stdClass
     /** @var mixed[] */
     private $values = [];
 
+    /** @var mixed[] */
+    private $profiles = [];
+
     public function __construct(array $arguments, array $defaults = [])
     {
         $this->arguments = $arguments;
@@ -143,8 +146,60 @@ final class Configurator extends \stdClass
         } else {
             $config = [];
         }
+
+        foreach ($config as $key => $value) {
+            if (is_array($value)) {
+                $this->expandValues($config, $config[$key]);
+            }
+        }
+
+        $this->loadValues($config, false);
+
+        foreach ($config as $key => $value) {
+            if ($key[0] === '@') {
+                $this->profiles[$key] = $value;
+            }
+        }
+
+        if ($this->values['use']) {
+            foreach ($this->values['use'] as $use) {
+                if (!isset($config[$use])) {
+                    die(sprintf('Configuration profile %s not found.', $use));
+                }
+                $this->loadValues($config[$use], true);
+            }
+        }
+    }
+
+    /**
+     * @param mixed[] $config
+     * @param mixed[] $section
+     */
+    private function expandValues(array $config, array &$section): void
+    {
+        while (isset($section['include'])) {
+            $includes = $section['include'];
+            unset($section['include']);
+            $includes = is_array($includes) ? $includes : [$includes];
+            foreach ($includes as $include) {
+                $section = array_merge($section, $config[$include]);
+            }
+        }
+        foreach ($section as $key => $value) {
+            if (is_array($value)) {
+                $this->expandValues($config, $section[$key]);
+            }
+        }
+    }
+
+    /**
+     * @param mixed[] $config
+     * @param bool $rewrite
+     */
+    private function loadValues(array $config, bool $rewrite): void
+    {
         foreach ($this->arguments as $name => list(, $type, )) {
-            if (isset($config[$name]) && !isset($this->values[$name])) {
+            if (isset($config[$name]) && ($rewrite || !isset($this->values[$name]))) {
                 $this->values[$name] = $this->normalize($config[$name]);
             }
         }
@@ -190,6 +245,9 @@ final class Configurator extends \stdClass
      */
     public function __get(string $name)
     {
+        if (isset($this->profiles['@' . $name])) {
+            return new ConfigurationProfile($this->profiles['@' . $name]);
+        }
         if (!array_key_exists($name, $this->values)) {
             trigger_error(sprintf('Value "%s" not found.', $name));
             return null;
