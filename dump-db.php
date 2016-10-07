@@ -40,6 +40,7 @@ if (class_exists(\Tracy\Debugger::class)) {
 $arguments = [
         'Configuration:',
     'config' =>         ['c', Configurator::VALUES, 'configuration files', 'paths'],
+    'use' =>            ['', Configurator::VALUES, 'configuration profiles to use', 'profiles'],
         'Commands:',
     'read' =>           ['r', Configurator::FLAG, 'show differences against existing dump'],
     'write' =>          ['W', Configurator::FLAG, 'write outputs (rewrite existing dump)'],

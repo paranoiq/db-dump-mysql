@@ -5,7 +5,7 @@ namespace Dogma\Tools;
 use Dogma\Tools\Colors as C;
 use Nette\Neon\Neon;
 
-final class Configurator extends \StdClass
+final class Configurator extends \stdClass
 {
 
     const FLAG = 'flag';
@@ -23,6 +23,9 @@ final class Configurator extends \StdClass
 
     /** @var mixed[] */
     private $values = [];
+
+    /** @var mixed[] */
+    private $profiles = [];
 
     public function __construct(array $arguments, array $defaults = [])
     {
@@ -143,8 +146,52 @@ final class Configurator extends \StdClass
         } else {
             $config = [];
         }
+
+        foreach ($config as $key => $value) {
+            if (is_array($value)) {
+                $this->expandValues($config, $config[$key]);
+            }
+        }
+
+        $this->loadValues($config, false);
+
+        foreach ($config as $key => $value) {
+            if ($key[0] === '@') {
+                $this->profiles[$key] = $value;
+            }
+        }
+
+        if ($this->values['use']) {
+            foreach ($this->values['use'] as $use) {
+                if (!isset($config[$use])) {
+                    die(sprintf("Configuration profile %s not found.", $use));
+                }
+                $this->loadValues($config[$use], true);
+            }
+        }
+    }
+
+    private function expandValues(array $config, array &$section)
+    {
+        while (isset($section['include'])) {
+            $includes = $section['include'];
+            unset($section['include']);
+            $includes = is_array($includes) ? $includes : [$includes];
+            foreach ($includes as $include) {
+                $section = array_merge($section, $config[$include]);
+            }
+        }
+        foreach ($section as $key => $value) {
+            if (is_array($value)) {
+                $this->expandValues($config, $section[$key]);
+            }
+        }
+    }
+
+    private function loadValues(array $config, bool $rewrite)
+    {
         foreach ($this->arguments as $name => list(, $type, )) {
-            if (isset($config[$name]) && !isset($this->values[$name])) {
+            if (isset($config[$name]) && ($rewrite || !isset($this->values[$name]))) {
                 $this->values[$name] = $this->normalize($config[$name]);
             }
         }
@@ -177,6 +224,9 @@ final class Configurator extends \StdClass
 
     public function __get(string $name)
     {
+        if (isset($this->profiles['@' . $name])) {
+            return new Profile($this->profiles['@' . $name]);
+        }
         if (!array_key_exists($name, $this->values)) {
             trigger_error(sprintf('Value "%s" not found.', $name));
             return null;
@@ -185,6 +235,27 @@ final class Configurator extends \StdClass
             return $this->defaults[$name];
         } else {
             return $this->values[$name];
+        }
+    }
+
+}
+
+class Profile extends \stdClass
+{
+    /** @var mixed[] */
+    private $values;
+
+    public function __construct(array $values)
+    {
+        $this->values = $values;
+    }
+
+    public function __get(string $name)
+    {
+        if (isset($this->values[$name])) {
+            return $this->values[$name];
+        } else {
+            return null;
         }
     }
 
