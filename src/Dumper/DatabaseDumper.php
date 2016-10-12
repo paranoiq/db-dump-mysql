@@ -5,6 +5,8 @@ namespace Dogma\Tools\Dumper;
 use Dogma\Tools\Colors as C;
 use Dogma\Tools\Configurator;
 use Dogma\Tools\Console;
+use Dogma\Tools\Dumper\Input\FileInputAdapter;
+use Dogma\Tools\Dumper\Output\FileOutputAdapter;
 use Dogma\Tools\SimplePdoResult;
 use Dogma\Tools\TableFormatter;
 
@@ -43,8 +45,11 @@ final class DatabaseDumper
     /** @var \Dogma\Tools\Configurator */
     private $config;
 
-    /** @var \Dogma\Tools\Dumper\IoAdapter */
-    private $io;
+    /** @var \Dogma\Tools\Dumper\Input\InputAdapter */
+    private $input;
+
+    /** @var \Dogma\Tools\Dumper\Output\OutputAdapter */
+    private $output;
 
     /** @var \Dogma\Tools\Dumper\MysqlAdapter */
     private $db;
@@ -61,17 +66,9 @@ final class DatabaseDumper
         $this->db = $db;
         $this->console = $console;
 
-        $fileInit = function (): void {
-            $this->io->write("SET NAMES 'utf8';\n");
-            $this->io->write("SET sql_mode= '';\n");
-            $this->io->write('SET foreign_key_checks=OFF;');
-        };
-        $databaseInit = function (string $database): void {
-            $this->io->write('USE ' . $this->db->quoteName($database) . ";\n");
-        };
-
-        $this->io = new IoAdapter($config, $fileInit, $databaseInit);
-        $this->dataDumper = new DataDumper($db, $this->io, $console);
+        $this->input = new FileInputAdapter($config);
+        $this->output = new FileOutputAdapter($config);
+        $this->dataDumper = new DataDumper($db, $this->output, $console);
     }
 
     public function run(): void
@@ -149,11 +146,16 @@ final class DatabaseDumper
             $this->console->writeLn('Running in read-only mode');
         }
 
-        $this->io->cleanOutputDirectory();
+        $init = function (): void {
+            $this->output->write("SET NAMES 'utf8';\n");
+            $this->output->write("SET sql_mode= '';\n");
+            $this->output->write("SET foreign_key_checks=OFF;\n");
+        };
+        $databaseInit = function (string $database): void {
+            $this->output->write('USE ' . $this->db->quoteName($database) . ";\n");
+        };
+        $this->output->init($init, $databaseInit);
 
-        if ($this->config->singleFile) {
-            $this->io->write('SET foreign_key_checks=OFF;');
-        }
         foreach ($this->getDatabases() as $database) {
             $this->console->ln()->writeLn(C::lyellow('database: '), $database);
             $this->dumpStructure($database);
@@ -207,12 +209,9 @@ final class DatabaseDumper
 
             $method = sprintf('get%s', ucfirst($type));
             $newItems = call_user_func([$this->db, $method], $database);
-            $oldItems = $this->io->scanInputTypeDirectory($database, $type);
+            $oldItems = $this->input->scanItems($database, $type);
             if (!$newItems && !$oldItems) {
                 continue;
-            }
-            if ($newItems) {
-                $this->io->createOutputTypeDirectory($database, $type);
             }
 
             $allItems = array_unique(array_merge($oldItems, $newItems));
@@ -264,7 +263,7 @@ final class DatabaseDumper
         $sql = $this->normalizeOutput($sql, $this->config->lineEndings, $this->config->indentation);
 
         $message = '';
-        $previousSql = $this->io->read($database, $type, $item);
+        $previousSql = $this->input->read($database, $type, $item);
         if ($previousSql === null) {
             $message .= C::lgreen(self::STATUS_NEW);
         } else {
@@ -276,7 +275,7 @@ final class DatabaseDumper
             }
         }
 
-        $this->io->write($sql, $database, $type, $item);
+        $this->output->write($sql, $database, $type, $item);
 
         return $message;
     }
