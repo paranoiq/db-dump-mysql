@@ -4,6 +4,7 @@ namespace Dogma\Tools\Dumper;
 
 use Dogma\Tools\Colors as C;
 use Dogma\Tools\Console;
+use Dogma\Tools\Dumper\Output\OutputAdapter;
 
 class DataDumper
 {
@@ -22,8 +23,8 @@ class DataDumper
     /** @var \Dogma\Tools\Dumper\DatabaseInfo */
     private $dbInfo;
 
-    /** @var \Dogma\Tools\Dumper\IoAdapter */
-    private $io;
+    /** @var \Dogma\Tools\Dumper\Output\OutputAdapter */
+    private $output;
 
     /** @var \Dogma\Tools\Console */
     private $console;
@@ -40,11 +41,11 @@ class DataDumper
     /** @var mixed[][][][] $mode => $database => $table => $key => $values */
     private $done = [];
 
-    public function __construct(MysqlAdapter $db, IoAdapter $io, Console $console)
+    public function __construct(MysqlAdapter $db, OutputAdapter $output, Console $console)
     {
         $this->db = $db;
         $this->dbInfo = new DatabaseInfo($db);
-        $this->io = $io;
+        $this->output = $output;
         $this->console = $console;
     }
 
@@ -107,7 +108,6 @@ class DataDumper
     public function dumpData() {
         foreach ([self::MODE_ISOLATED, self::MODE_CONSISTENT, self::MODE_GREEDY] as $runMode) {
             foreach ($this->selectors as $database => $selectors) {
-                $this->io->createOutputTypeDirectory($database, 'data');
                 foreach ($selectors as $table => list($mode, $selector)) {
                     if ($mode !== $runMode) {
                         continue;
@@ -301,7 +301,7 @@ class DataDumper
 
         $query = substr($query, 0, -2) . ";\n";
 
-        $this->io->write($query, $database, 'data', $table);
+        $this->output->write($query, $database, 'data', $table);
     }
 
     private function take(array &$from, array &$to, int $items): array
