@@ -162,7 +162,7 @@ final class DatabaseDumper
         }
 
         if ($this->config->write && $this->config->data) {
-            list($exportDependencies, $dep) = $this->dataDumper->readDataConfig($this->config->data);
+            [$exportDependencies, $dependencyCount] = $this->dataDumper->readDataConfig($this->config->data);
             if ($exportDependencies) {
                 $this->console->ln()->writeLn('Scanning for dependencies');
                 list($fk, $primary) = $this->dataDumper->scanStructure($this->config->databases);
@@ -170,8 +170,8 @@ final class DatabaseDumper
                 if ($primary) {
                     $this->console->writeLn('  ' . $primary . ' primary key dependencies found');
                 }
-                if ($dep) {
-                    $this->console->writeLn('  ' . $dep . ' dependencies configured');
+                if ($dependencyCount) {
+                    $this->console->writeLn('  ' . $dependencyCount . ' dependencies configured');
                 }
             }
             $this->console->ln()->writeLn('Exporting database data')->ln();

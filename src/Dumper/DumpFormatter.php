@@ -1,5 +1,7 @@
 <?php declare(strict_types = 1);
 
+// spell-check-ignore: 3join
+
 namespace Dogma\Tools\Dumper;
 
 final class DumpFormatter

@@ -4,7 +4,6 @@ directories:
     - build
     - src
     - tests
-    - util
     - //
 
 # file extensions to check
@@ -19,6 +18,7 @@ extensions:
 
 # file name pattern -> list of dictionaries (first matched is used)
 dictionariesByFileName:
+    *config*.neon: skip
     *.php: en
     *.phpt: en
     *.neon: en
@@ -29,16 +29,23 @@ dictionariesByFileName:
 
 # file extension -> list of dictionaries
 dictionariesByFileExtension:
-	php: php
+	php: php mysql57
 	phpt: php
 	neon: neon
 
 # paths to search for dictionary files. must have .dic extension
 dictionaryDirectories:
-    - vendor/spell-checker/dictionary-en
-    - dictionaries
     - build/spell-checker
+    - vendor/spell-checker/dictionary-en
+    - vendor/spell-checker/spell-checker/dictionaries
 
 # words, that cannot be parsed by default conventions
 wordsParserExceptions:
     - PHPUnit
+
+dictionaryFilesToCheck:
+	- en-custom.dic
+
+checkLocalIgnores: true
+
+localIgnores: []

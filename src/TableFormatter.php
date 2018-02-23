@@ -183,7 +183,7 @@ class TableFormatter
         $maxLengths = $zeroes;
         $maxWordLengths = $zeroes;
         $flexible = [];
-        $wrappable = [];
+        $wrapable = [];
         $columnWidths = [];
 
         foreach ($rows as $j => $row) {
@@ -198,10 +198,10 @@ class TableFormatter
                 }
 
                 if (strstr($cell, ' ')) {
-                    $wrappable[$i] = true;
+                    $wrapable[$i] = true;
                     $maxWordLengths[$i] = max($maxWordLengths[$i], $this->getMaxWordLength($cell));
                 } else {
-                    $wrappable[$i] = false;
+                    $wrapable[$i] = false;
                     $maxWordLengths[$i] = $maxLengths[$i];
                 }
             }
@@ -209,23 +209,23 @@ class TableFormatter
 
         $left = $tableWidth;
         $avg = $left / $columnsCount;
-        $nflex = 0;
+        $flexibleColumnsCount = 0;
 
         // determine whether columns should be flexible and assign width of non-flexible columns
         foreach ($maxLengths as $i => $maxLength) {
             $flexible[$i] = ($maxLength > 2 * $avg);
             if ($flexible[$i]) {
-                $nflex++;
+                $flexibleColumnsCount++;
             } else {
                 $columnWidths[$i] = max($maxLength, $headLengths[$i]);
                 $left -= $columnWidths[$i];
             }
         }
 
-        // wrap all wrappable columns
+        // wrap all wrapable columns
         if (array_sum($maxLengths) > $tableWidth) {
             foreach ($maxWordLengths as $i => $maxWordLength) {
-                if ($wrappable[$i] && !$flexible[$i]) {
+                if ($wrapable[$i] && !$flexible[$i]) {
                     $left += $columnWidths[$i] - $maxWordLength;
                     $columnWidths[$i] = $maxWordLength;
                 }
@@ -235,7 +235,7 @@ class TableFormatter
         // wrap headers
         if (array_sum($maxLengths) > array_sum($columnWidths)) {
             foreach ($maxLengths as $i => $maxLength) {
-                if (!$wrappable[$i] && !$flexible[$i] && $maxLength < $headLengths[$i]) {
+                if (!$wrapable[$i] && !$flexible[$i] && $maxLength < $headLengths[$i]) {
                     $left += $columnWidths[$i] - $maxLength;
                     $columnWidths[$i] = $maxLength;
                 }

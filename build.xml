@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- spell-check-ignore: basedir checkreturn da defaultexcludes fileset logoutput mkdir passthru sp -->
+<!-- spell-check-ignore: basedir da defaultexcludes fileset mkdir sp -->
 <project name="SpellChecker" default="build">
 
     <property name="path.build" value="${project.basedir}/build"/>

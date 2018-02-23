@@ -48,7 +48,7 @@ final class Configurator extends \stdClass
         $guide = '';
         foreach ($this->arguments as $name => $config) {
             if (is_string($config)) {
-                $guide .= "$config\n";
+                $guide .= $config . "\n";
                 continue;
             }
             $row = '';

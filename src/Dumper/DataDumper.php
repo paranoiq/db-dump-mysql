@@ -56,7 +56,7 @@ class DataDumper
     public function readDataConfig(array $dataConfig): array
     {
         $dependencies = false;
-        $dep = 0;
+        $dependencyCount = 0;
         foreach ($dataConfig as $database => $config) {
             $dbTables = $this->db->getTables($database);
 
@@ -94,14 +94,14 @@ class DataDumper
                 foreach ($tables as $table) {
                     if ($mode === self::MODE_DEPENDENCIES) {
                         $this->dependencies[$database][$table] = $selector;
-                        $dep += count($selector);
+                        $dependencyCount += count($selector);
                     } else {
                         $this->selectors[$database][$table] = [$mode, $selector];
                     }
                 }
             }
         }
-        return [$dependencies, $dep];
+        return [$dependencies, $dependencyCount];
     }
 
     /**
@@ -275,7 +275,7 @@ class DataDumper
                         foreach ($columns as $i => $column) {
                             $fkValues[$referencedColumns[$i]] = $row[$column];
                         }
-                        /// assuming, that foreign key points to primary key, which doesn't have to be true
+                        /// assuming, that foreign key points to primary key, which does not have to be true
                         $this->enqueueItem($referencedDatabase, $referencedTable, $mode, $fkValues);
                     }
                 }
@@ -291,7 +291,7 @@ class DataDumper
             if ($backReferences) {
                 foreach ($referrers as $fkey => $values) {
                     list($referencedByDatabase, $referencedByTable, $columns, ) = $backReferences[$fkey];
-                    /// assuming, that referenced column cannot contain null, which doesn't have to be true
+                    /// assuming, that referenced column cannot contain null, which does not have to be true
                     $this->enqueueReferrerItems($referencedByDatabase, $referencedByTable, $columns, $values);
                 }
             }

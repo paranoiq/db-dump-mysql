@@ -43,19 +43,19 @@ class DatabaseInfo
                 $this->getForeignKeys($database, $table);
             }
         }
-        $fk = 0;
+        $foreignKeysCount = 0;
         foreach ($this->foreignKeys as $db) {
             foreach ($db as $table) {
-                $fk += count($table);
+                $foreignKeysCount += count($table);
             }
         }
-        $dep = 0;
+        $dependenciesCount = 0;
         foreach ($this->dependencies as $db) {
             foreach ($db as $table) {
-                $dep += count($table);
+                $dependenciesCount += count($table);
             }
         }
-        return [$fk, $dep];
+        return [$foreignKeysCount, $dependenciesCount];
     }
 
     /**
