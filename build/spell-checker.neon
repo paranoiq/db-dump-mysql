@@ -1,0 +1,44 @@
+
+# directories to search for files
+directories:
+    - build
+    - src
+    - tests
+    - util
+    - //
+
+# file extensions to check
+extensions:
+    - *.php
+    - *.phpt
+    - *.neon
+    - *.xml
+    - *.properties
+    - *.json
+    - *.md
+
+# file name pattern -> list of dictionaries (first matched is used)
+dictionariesByFileName:
+    *.php: en
+    *.phpt: en
+    *.neon: en
+    *.xml: en
+    *.properties: en
+    *.json: en
+    *.md: en
+
+# file extension -> list of dictionaries
+dictionariesByFileExtension:
+	php: php
+	phpt: php
+	neon: neon
+
+# paths to search for dictionary files. must have .dic extension
+dictionaryDirectories:
+    - vendor/spell-checker/dictionary-en
+    - dictionaries
+    - build/spell-checker
+
+# words, that cannot be parsed by default conventions
+wordsParserExceptions:
+    - PHPUnit

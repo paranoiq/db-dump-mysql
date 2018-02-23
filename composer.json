@@ -1,28 +1,39 @@
 {
-  "name": "paranoiq/db-dump",
-  "description": "Simple database structure dump tool",
-  "keywords": [
-    "database", "dump", "SQL", "MySQL"
-  ],
-  "homepage": "http://github.com/paranoiq/db-dump",
-  "license": ["proprietary"],
-  "authors": [
-    {
-      "name": "Vlasta Neubauer",
-      "email": "cz.paranoiq@gmail.com",
-      "homepage": "http://www.paranoiq.cz/"
+    "name": "paranoiq/db-dump",
+    "description": "Simple database structure dump tool",
+    "keywords": [
+        "database", "dump", "SQL", "MySQL"
+    ],
+    "homepage": "http://github.com/paranoiq/db-dump",
+    "license": ["proprietary"],
+    "authors": [
+        {
+            "name": "Vlasta Neubauer",
+            "email": "cz.paranoiq@gmail.com",
+            "homepage": "http://www.paranoiq.cz/"
+        }
+    ],
+    "require": {
+        "php": ">=7.0.0",
+        "ext-pdo": "*",
+        "nette/neon": "~2.4"
+    },
+    "require-dev": {
+        "consistence/coding-standard": "~2.3",
+        "jakub-onderka/php-console-highlighter": "~0.3",
+        "jakub-onderka/php-parallel-lint": "~0.9",
+        "nette/tester": "~2.0",
+        "phing/phing": "~2.16",
+        "phpstan/phpstan": "~0.9",
+        "slevomat/coding-standard": "~4.4",
+        "spell-checker/dictionary-en": "~0.1",
+        "spell-checker/spell-checker": "~0.3",
+        "squizlabs/php_codesniffer": "~3.2",
+        "tracy/tracy": "~2.4"
+    },
+    "repositories": [],
+    "config": {
+        "bin-dir": "bin",
+        "vendor-dir": "vendor"
     }
-  ],
-  "require": {
-    "php": ">=7.0.0",
-    "nette/neon": "~2.3"
-  },
-  "require-dev": {
-    "tracy/tracy": "~2.3"
-  },
-  "repositories": [],
-  "config": {
-    "bin-dir": "bin",
-    "vendor-dir": "vendor"
-  }
 }
