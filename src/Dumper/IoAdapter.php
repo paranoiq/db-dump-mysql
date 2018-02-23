@@ -29,7 +29,7 @@ class IoAdapter
         $this->databaseInit = $databaseInit;
     }
 
-    public function cleanOutputDirectory(string $path = null)
+    public function cleanOutputDirectory(?string $path = null): void
     {
         if (!$this->config->write) {
             return;
@@ -47,7 +47,7 @@ class IoAdapter
         }
     }
 
-    public function createOutputTypeDirectory(string $database, string $type)
+    public function createOutputTypeDirectory(string $database, string $type): void
     {
         if ($this->config->write && !$this->config->singleFile && !$this->config->filePerDatabase) {
             $dir = sprintf('%s/%s/%s', $this->config->outputDir, $database, $type);
@@ -58,6 +58,11 @@ class IoAdapter
         }
     }
 
+    /**
+     * @param string $database
+     * @param string $type
+     * @return string[]
+     */
     public function scanInputTypeDirectory(string $database, string $type): array
     {
         $dir = sprintf('%s/%s/%s', $this->config->inputDir, $database, $type);
@@ -73,7 +78,7 @@ class IoAdapter
      * @param string $item
      * @return string|null
      */
-    public function read(string $database, string $type, string $item)
+    public function read(string $database, string $type, string $item): ?string
     {
         $file = sprintf('%s/%s/%s/%s.sql', $this->config->inputDir, $database, $type, $item);
 
@@ -89,7 +94,7 @@ class IoAdapter
         return $result;
     }
 
-    public function write(string $data, string $database = null, string $type = null, string $item = null)
+    public function write(string $data, ?string $database = null, ?string $type = null, ?string $item = null): void
     {
         static $handlers = [];
 
@@ -97,6 +102,7 @@ class IoAdapter
             return;
         }
 
+        $file = null;
         if ($this->config->singleFile) {
             if (!$handlers) {
                 $file = sprintf('%s/export.sql', $this->config->outputDir);

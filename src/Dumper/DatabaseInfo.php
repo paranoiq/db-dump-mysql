@@ -5,10 +5,10 @@ namespace Dogma\Tools\Dumper;
 class DatabaseInfo
 {
 
-    /** @var string[][] $database => $table => [$columns] */
+    /** @var string[][][] $database => $table => [$columns] */
     private $columns;
 
-    /** @var string[][] $database => $table => [$primaryKeyColumns] */
+    /** @var string[][][] $database => $table => [$primaryKeyColumns] */
     private $primary;
 
     /** @var string[][][][] $database => $table => $fkey => [$referencedDatabase, $referencedTable, [$referencedColumns], [$columns]] */
@@ -28,6 +28,10 @@ class DatabaseInfo
         $this->adapter = $adapter;
     }
 
+    /**
+     * @param string[] $configDatabases
+     * @return int[]
+     */
     public function scanStructure(array $configDatabases): array
     {
         $databases = $this->adapter->getDatabases();
@@ -54,6 +58,11 @@ class DatabaseInfo
         return [$fk, $dep];
     }
 
+    /**
+     * @param string $database
+     * @param string $table
+     * @return string[]
+     */
     public function getColumns(string $database, string $table): array
     {
         if (!isset($this->columns[$database][$table])) {
@@ -62,6 +71,11 @@ class DatabaseInfo
         return $this->columns[$database][$table];
     }
 
+    /**
+     * @param string $database
+     * @param string $table
+     * @return string[]
+     */
     public function getPrimaryColumns(string $database, string $table): array
     {
         if (!isset($this->primary[$database][$table])) {
@@ -91,6 +105,11 @@ class DatabaseInfo
         return $this->foreignKeys[$database][$table];
     }
 
+    /**
+     * @param string $database
+     * @param string $table
+     * @return string[][]
+     */
     public function getReferencesTo(string $database, string $table): array
     {
         if (!isset($this->referencesTo[$database][$table])) {
@@ -99,6 +118,12 @@ class DatabaseInfo
         return $this->referencesTo[$database][$table];
     }
 
+    /**
+     * @param string $database
+     * @param string $table
+     * @param string[] $referencingTables
+     * @return string[][]
+     */
     public function getReferencesToByTables(string $database, string $table, array $referencingTables): array
     {
         if (!isset($this->referencesTo[$database][$table])) {
@@ -114,6 +139,11 @@ class DatabaseInfo
         return $references;
     }
 
+    /**
+     * @param string $database
+     * @param string $table
+     * @return string[][]
+     */
     public function getPrimaryKeyDependencies(string $database, string $table): array
     {
         if (!isset($this->dependencies[$database][$table])) {

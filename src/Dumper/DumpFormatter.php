@@ -25,6 +25,7 @@ final class DumpFormatter
         '/ end/i',
     ];
 
+    /** @var string[] */
     private static $replace = [
         "\n  algorithm=",
         "\n  definer=",
@@ -38,7 +39,7 @@ final class DumpFormatter
         "\norder by ",
         "\n\n  union\n\n",
         "\n  $1$2$3join ",
-        " on $1",
+        ' on $1',
         "\n    when ",
         "\n    else ",
         "\n  end",

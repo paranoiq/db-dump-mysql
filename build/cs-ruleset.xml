@@ -17,6 +17,7 @@
         <exclude name="Generic.WhiteSpace.DisallowSpaceIndent.SpacesUsed"/><!-- fuck tabulators -->
         <exclude name="Generic.Functions.OpeningFunctionBraceBsdAllman.BraceOnSameLine"/><!-- "\n) {\n" -->
         <exclude name="Generic.Commenting.Todo.TaskFound"/>
+        <exclude name="Squiz.Strings.DoubleQuoteUsage.ContainsVar"/>
     </rule>
     <rule ref="../vendor/slevomat/coding-standard/SlevomatCodingStandard/ruleset.xml">
         <exclude name="SlevomatCodingStandard.TypeHints.TypeHintDeclaration.MissingTraversableParameterTypeHintSpecification"/><!-- false positive on array by reference -->
@@ -28,10 +29,12 @@
         <exclude name="SlevomatCodingStandard.Namespaces.FullyQualifiedGlobalFunctions.NonFullyQualified"/>
         <exclude name="SlevomatCodingStandard.ControlStructures.RequireYodaComparison.RequiredYodaComparison"/>
         <exclude name="SlevomatCodingStandard.TypeHints.DeclareStrictTypes.IncorrectWhitespaceBetweenOpenTagAndDeclare"/>
+        <exclude name="SlevomatCodingStandard.ControlStructures.EarlyExit.EarlyExitNotUsed"/>
+        <exclude name="SlevomatCodingStandard.ControlStructures.EarlyExit.UselessElse"/>
     </rule>
     <rule ref="SlevomatCodingStandard.Files.TypeNameMatchesFileName">
         <properties>
-            <property name="rootNamespaces" type="array" value="src/SpellChecker=>SpellChecker,src=>Dogma\Tools"/>
+            <property name="rootNamespaces" type="array" value="src/Dumper=>Dogma\Tools\Dumper,src=>Dogma\Tools"/>
             <property name="skipDirs" type="array" value="tests"/>
         </properties>
     </rule>

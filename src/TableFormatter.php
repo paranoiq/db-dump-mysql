@@ -1,6 +1,6 @@
 <?php declare(strict_types = 1);
 
-namespace Dogma\Tools\Dumper;
+namespace Dogma\Tools;
 
 use Dogma\Tools\Colors as C;
 
@@ -15,7 +15,10 @@ class TableFormatter
         $this->screenWidth = $screenWidth;
     }
 
-    public function render($source)
+    /**
+     * @param iterable|string[][] $source
+     */
+    public function render(iterable $source): void
     {
         $formats = [];
         $columns = [];
@@ -29,6 +32,7 @@ class TableFormatter
             }
             $values = [];
             $i = 0;
+            /** @var mixed $value */
             foreach ($row as $value) {
                 if (is_numeric($value)) {
                     $values[] = $value;
@@ -83,7 +87,7 @@ class TableFormatter
         $this->renderDivider($columnWidths, $padding);
     }
 
-    private function renderDivider(array $columnWidths, int $padding)
+    private function renderDivider(array $columnWidths, int $padding): void
     {
         $row = '+';
         foreach ($columnWidths as $i => $columnWidth) {
@@ -95,7 +99,7 @@ class TableFormatter
         echo $this->formatLayout($row . "+\n");
     }
 
-    private function renderRow(array $row, array $columnWidths, array $formats, int $padding)
+    private function renderRow(array $row, array $columnWidths, array $formats, int $padding): void
     {
         echo $this->formatLayout($padding ? '| ' : '|');
         $remainders = [];
@@ -160,7 +164,14 @@ class TableFormatter
         return $pos ?: $length;
     }
 
-    private function calculateColumnWidths(array $rows, int $tableWidth, $columnsCount, array $formats): array
+    /**
+     * @param string[][] $rows
+     * @param int $tableWidth
+     * @param int $columnsCount
+     * @param string[] $formats
+     * @return int[]
+     */
+    private function calculateColumnWidths(array $rows, int $tableWidth, int $columnsCount, array $formats): array
     {
         if ($columnsCount > $tableWidth) {
             throw new \RuntimeException('Too much columns. Cannot create a table layout.');
@@ -212,7 +223,7 @@ class TableFormatter
         }
 
         // wrap all wrappable columns
-        if (array_sum($maxLengths) > $tableWidth){
+        if (array_sum($maxLengths) > $tableWidth) {
             foreach ($maxWordLengths as $i => $maxWordLength) {
                 if ($wrappable[$i] && !$flexible[$i]) {
                     $left += $columnWidths[$i] - $maxWordLength;

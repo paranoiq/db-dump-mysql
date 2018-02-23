@@ -1,6 +1,6 @@
 <?php declare(strict_types = 1);
 
-namespace Dogma\Tools\Dumper;
+namespace Dogma\Tools;
 
 class System
 {

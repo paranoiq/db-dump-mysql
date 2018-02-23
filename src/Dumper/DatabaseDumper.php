@@ -6,6 +6,7 @@ use Dogma\Tools\Colors as C;
 use Dogma\Tools\Configurator;
 use Dogma\Tools\Console;
 use Dogma\Tools\SimplePdoResult;
+use Dogma\Tools\TableFormatter;
 
 /**
  * Dumps tables, views, functions, procedures, triggers and events from database
@@ -13,19 +14,19 @@ use Dogma\Tools\SimplePdoResult;
 final class DatabaseDumper
 {
 
-    const LINE_ENDINGS = [
+    public const LINE_ENDINGS = [
         'LF' => "\n",
         'CRLF' => "\r\n",
         'CR' => "\r",
     ];
 
-    const INDENTATION = [
+    public const INDENTATION = [
         2 => '  ',
         4 => '    ',
         'tab' => "\t",
     ];
 
-    const TYPES = [
+    public const TYPES = [
         'tables',
         'views',
         'functions',
@@ -34,12 +35,12 @@ final class DatabaseDumper
         'events',
     ];
 
-    const STATUS_NEW     = ' (new)';
-    const STATUS_REMOVED = ' (deleted)';
-    const STATUS_CHANGED = ' (changed)';
-    const STATUS_SAME    = '';
+    public const STATUS_NEW     = ' (new)';
+    public const STATUS_REMOVED = ' (deleted)';
+    public const STATUS_CHANGED = ' (changed)';
+    public const STATUS_SAME    = '';
 
-    /** @var string[][] */
+    /** @var \Dogma\Tools\Configurator */
     private $config;
 
     /** @var \Dogma\Tools\Dumper\IoAdapter */
@@ -60,20 +61,20 @@ final class DatabaseDumper
         $this->db = $db;
         $this->console = $console;
 
-        $fileInit = function () {
+        $fileInit = function (): void {
             $this->io->write("SET NAMES 'utf8';\n");
             $this->io->write("SET sql_mode= '';\n");
             $this->io->write('SET foreign_key_checks=OFF;');
         };
-        $databaseInit = function (string $database) {
-            $this->io->write("USE " . $this->db->quoteName($database) . ";\n");
+        $databaseInit = function (string $database): void {
+            $this->io->write('USE ' . $this->db->quoteName($database) . ";\n");
         };
 
         $this->io = new IoAdapter($config, $fileInit, $databaseInit);
         $this->dataDumper = new DataDumper($db, $this->io, $console);
     }
 
-    public function run()
+    public function run(): void
     {
         $time = microtime(true);
 
@@ -93,7 +94,7 @@ final class DatabaseDumper
         $this->console->ln()->write(C::gray('Finished in: ') . $this->formatTime($time));
     }
 
-    private function query(string $query)
+    private function query(string $query): void
     {
         $this->console->write(C::gray('Query: '), C::black(' ' . $this->config->query . ' ', C::YELLOW))->ln(2);
 
@@ -115,7 +116,7 @@ final class DatabaseDumper
         }
 
         $time = microtime(true) - $time;
-        $this->console->write(C::gray("Time: ") . $this->formatTime($time) . C::gray(', rows: ') . $result->rowCount());
+        $this->console->write(C::gray('Time: ') . $this->formatTime($time) . C::gray(', rows: ') . $result->rowCount());
         if ($calcFoundRows) {
             $totalRows = $this->db->query('SELECT FOUND_ROWS() AS rows')->fetchColumn('rows');
             $this->console->write(C::gray(', total rows: ') . $totalRows);
@@ -132,7 +133,7 @@ final class DatabaseDumper
         return $time > 1 ? round($time, 3) . ' s' : round($time * 1000, 3) . ' ms';
     }
 
-    private function displayResult(SimplePdoResult $result)
+    private function displayResult(SimplePdoResult $result): void
     {
         $columns = Console::getTerminalWidth();
 
@@ -140,7 +141,7 @@ final class DatabaseDumper
         $formatter->render($result);
     }
 
-    private function export()
+    private function export(): void
     {
         if ($this->config->write) {
             $this->console->writeLn('Exporting database structure');
@@ -176,7 +177,11 @@ final class DatabaseDumper
         }
     }
 
-    private function getDatabases(bool $alert = true)
+    /**
+     * @param bool $alert
+     * @return string[]
+     */
+    private function getDatabases(bool $alert = true): array
     {
         $config = $this->config->databases;
         $real = $this->db->getDatabases();
@@ -190,7 +195,7 @@ final class DatabaseDumper
         return array_intersect($config, $real);
     }
 
-    private function dumpStructure(string $database)
+    private function dumpStructure(string $database): void
     {
         $this->db->use($database);
 
@@ -248,13 +253,13 @@ final class DatabaseDumper
             }
             $this->console->write(C::lyellow(sprintf("  %s (%d):\n    ", $type, count($newItems))));
             $this->console->write(implode(
-                (!$this->config->short ? "\n    " : ", "),
+                (!$this->config->short ? "\n    " : ', '),
                 array_map([C::class, 'lgray'], $scannedItems)
             ))->ln();
         }
     }
 
-    public function process(string $database, string $type, string $item, string $sql)
+    public function process(string $database, string $type, string $item, string $sql): string
     {
         $sql = $this->normalizeOutput($sql, $this->config->lineEndings, $this->config->indentation);
 
@@ -276,7 +281,7 @@ final class DatabaseDumper
         return $message;
     }
 
-    private function normalizeOutput(string $sql, string $lineEnding, string $indent)
+    private function normalizeOutput(string $sql, string $lineEnding, string $indent): string
     {
         if ($indent === 'tab') {
             $indent = "\t";

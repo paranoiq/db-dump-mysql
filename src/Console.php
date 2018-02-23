@@ -2,11 +2,13 @@
 
 namespace Dogma\Tools;
 
-use Dogma\Tools\Dumper\System;
-
 class Console
 {
 
+    /**
+     * @param mixed ...$params
+     * @return \Dogma\Tools\Console
+     */
     public function write(...$params): self
     {
         foreach ($params as $param) {
@@ -15,6 +17,10 @@ class Console
         return $this;
     }
 
+    /**
+     * @param mixed ...$params
+     * @return \Dogma\Tools\Console
+     */
     public function writeLn(...$params): self
     {
         foreach ($params as $param) {
@@ -26,7 +32,7 @@ class Console
         return $this;
     }
 
-    public function ln($rows = 1): self
+    public function ln(int $rows = 1): self
     {
         if ($rows === 1) {
             echo "\n";
@@ -43,7 +49,7 @@ class Console
         return $this;
     }
 
-    public static function switchTerminalToUtf8()
+    public static function switchTerminalToUtf8(): void
     {
         if (System::isWindows()) {
             exec('chcp 65001');

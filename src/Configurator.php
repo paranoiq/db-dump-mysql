@@ -5,16 +5,16 @@ namespace Dogma\Tools;
 use Dogma\Tools\Colors as C;
 use Nette\Neon\Neon;
 
-final class Configurator extends \StdClass
+final class Configurator extends \stdClass
 {
 
-    const FLAG = 'bool';
-    const VALUE = 'value';
-    const VALUES = 'values';
-    const ENUM = 'enum';
-    const SET = 'set';
+    public const FLAG = 'bool';
+    public const VALUE = 'value';
+    public const VALUES = 'values';
+    public const ENUM = 'enum';
+    public const SET = 'set';
 
-    /** @var string[][] */
+    /** @var string[]|string[][] */
     private $arguments;
 
     /** @var mixed[] */
@@ -57,15 +57,15 @@ final class Configurator extends \StdClass
             $row = C::padString($row, 23);
             $row .= ' ' . $info;
             if ($type === self::ENUM || $type === self::SET) {
-                $row .= "; values: " . implode('|', array_map([C::class, 'lyellow'], $values));
+                $row .= '; values: ' . implode('|', array_map([C::class, 'lyellow'], $values));
             }
             if (isset($this->defaults[$name])) {
                 if ($type === self::VALUES || $type === self::SET) {
-                    $row .= "; default: " . implode(',', array_map(function ($value) {
-                            return C::lyellow($this->format($value));
-                        }, $this->defaults[$name]));
+                    $row .= '; default: ' . implode(',', array_map(function ($value) {
+                        return C::lyellow($this->format($value));
+                    }, $this->defaults[$name]));
                 } else {
-                    $row .= "; default: " . C::lyellow($this->format($this->defaults[$name]));
+                    $row .= '; default: ' . C::lyellow($this->format($this->defaults[$name]));
                 }
             }
             $guide .= $row . "\n";
@@ -74,7 +74,7 @@ final class Configurator extends \StdClass
         return $guide . "\n";
     }
 
-    public function loadCliArguments()
+    public function loadCliArguments(): void
     {
         $short = [];
         $long = [];
@@ -112,7 +112,7 @@ final class Configurator extends \StdClass
         $this->values = $values;
     }
 
-    public function loadConfig(string $filePath)
+    public function loadConfig(string $filePath): void
     {
         if (is_file($filePath)) {
             if (substr($filePath, -5) === '.neon') {
@@ -134,7 +134,12 @@ final class Configurator extends \StdClass
         }
     }
 
-    private function normalize($value, string $type = null)
+    /**
+     * @param mixed $value
+     * @param string|null $type
+     * @return mixed
+     */
+    private function normalize($value, ?string $type = null)
     {
         if (($type === self::VALUES || $type === self::SET) && is_string($value)) {
             $value = explode(',', $value);
@@ -143,7 +148,7 @@ final class Configurator extends \StdClass
             }
         } elseif (is_numeric($value)) {
             $value = (float) $value;
-            if ($value == (int) $value) {
+            if ($value === (float) (int) $value) {
                 $value = (int) $value;
             }
         }
@@ -151,6 +156,10 @@ final class Configurator extends \StdClass
         return $value;
     }
 
+    /**
+     * @param mixed $value
+     * @return string
+     */
     private function format($value): string
     {
         if (is_bool($value)) {
@@ -159,6 +168,10 @@ final class Configurator extends \StdClass
         return (string) $value;
     }
 
+    /**
+     * @param string $name
+     * @return mixed|null
+     */
     public function __get(string $name)
     {
         if (!array_key_exists($name, $this->values)) {

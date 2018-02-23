@@ -25,7 +25,7 @@ class MysqlAdapter
         $this->db = $db;
     }
 
-    public function quote($value, string $type = null): string
+    public function quote(string $value, ?string $type = null): string
     {
         return $this->db->quote($value, $type);
     }
@@ -35,12 +35,21 @@ class MysqlAdapter
         return $this->db->quoteName($name);
     }
 
+    /**
+     * @param string $query
+     * @param mixed ...$args
+     * @return \Dogma\Tools\SimplePdoResult
+     */
     public function query(string $query, ...$args): SimplePdoResult
     {
         return $this->db->query($query, ...$args);
     }
 
-    public function getDatabases(string $pattern = null): array
+    /**
+     * @param string|null $pattern
+     * @return string[]
+     */
+    public function getDatabases(?string $pattern = null): array
     {
         if ($pattern) {
             $query = $this->db->query('SHOW DATABASES LIKE ?', $pattern);
@@ -50,7 +59,8 @@ class MysqlAdapter
         return $query->fetchColumnAll('Database');
     }
 
-    public function use(string $database) {
+    public function use(string $database): void
+    {
         $this->db->exec('USE %', $database);
     }
 
@@ -105,7 +115,7 @@ class MysqlAdapter
      * @param string $table
      * @return string[][] [$targetSchema, $targetTable, [$targetColumns], [$sourceColumns]]
      */
-    public function getForeignKeys(string $database, string $table): array
+    public function getForeignKeys(string $database, ?string $table): array
     {
         $result = $this->db->query(
             'SELECT
@@ -130,7 +140,12 @@ class MysqlAdapter
         return $fkeys;
     }
 
-    public function getTables(string $database, string $pattern = null): array
+    /**
+     * @param string $database
+     * @param string|null $pattern
+     * @return string[]
+     */
+    public function getTables(string $database, ?string $pattern = null): array
     {
         if ($pattern) {
             $query = $this->db->query(
@@ -156,7 +171,12 @@ class MysqlAdapter
         return $list;
     }
 
-    public function getViews(string $database, string $pattern = null): array
+    /**
+     * @param string $database
+     * @param string|null $pattern
+     * @return string[]
+     */
+    public function getViews(string $database, ?string $pattern = null): array
     {
         if ($pattern) {
             $query = $this->db->query(
@@ -173,7 +193,12 @@ class MysqlAdapter
         return $query->fetchColumnAll('TABLE_NAME');
     }
 
-    public function getFunctions(string $database, string $pattern = null): array
+    /**
+     * @param string $database
+     * @param string|null $pattern
+     * @return string[]
+     */
+    public function getFunctions(string $database, ?string $pattern = null): array
     {
         if ($pattern) {
             $query = $this->db->query(
@@ -192,7 +217,12 @@ class MysqlAdapter
         return $query->fetchColumnAll('SPECIFIC_NAME');
     }
 
-    public function getProcedures(string $database, string $pattern = null): array
+    /**
+     * @param string $database
+     * @param string|null $pattern
+     * @return string[]
+     */
+    public function getProcedures(string $database, ?string $pattern = null): array
     {
         if ($pattern) {
             $query = $this->db->query(
@@ -211,7 +241,12 @@ class MysqlAdapter
         return $query->fetchColumnAll('ROUTINE_NAME');
     }
 
-    public function getTriggers(string $database, string $pattern = null): array
+    /**
+     * @param string $database
+     * @param string|null $pattern
+     * @return string[]
+     */
+    public function getTriggers(string $database, ?string $pattern = null): array
     {
         if ($pattern) {
             $query = $this->db->query(
@@ -228,7 +263,12 @@ class MysqlAdapter
         return $query->fetchColumnAll('TRIGGER_NAME');
     }
 
-    public function getEvents(string $database, string $pattern = null): array
+    /**
+     * @param string $database
+     * @param string|null $pattern
+     * @return string[]
+     */
+    public function getEvents(string $database, ?string $pattern = null): array
     {
         if ($pattern) {
             $query = $this->db->query(
@@ -258,6 +298,11 @@ class MysqlAdapter
         return $sql . ';';
     }
 
+    /**
+     * @param string $sql
+     * @param string[] $charsets
+     * @return string
+     */
     public function removeCharsets(string $sql, array $charsets): string
     {
         foreach ($charsets as $charset) {
@@ -266,6 +311,11 @@ class MysqlAdapter
         return $sql;
     }
 
+    /**
+     * @param string $sql
+     * @param string[] $collations
+     * @return string
+     */
     public function removeCollations(string $sql, array $collations): string
     {
         foreach ($collations as $collation) {
@@ -286,36 +336,6 @@ class MysqlAdapter
         }, $sql);
 
         return $sql;
-    }
-
-    /**
-     * Creates SQL INSERT statement for table data
-     */
-    public function xdumpTableData(string $tableName): string
-    {
-        $sql = 'INSERT INTO ' . $this->db->quoteName($tableName) . ' VALUES\n';
-        $result = $this->db->query('SELECT * FROM %', $tableName);
-
-        $r = 1;
-        foreach ($result as $row) {
-            $sql .= '(';
-            $v = 1;
-            foreach ($row as $value) {
-                $sql .= is_null($value) ? 'NULL' : is_numeric($value) ? $value : $this->db->quote($value);
-                if ($v < $row->count()) {
-                    $sql .= ', ';
-                }
-                ++$v;
-            }
-            $sql .= ')';
-            if ($r < $result->rowCount()) {
-                $sql .= ",\n";
-            }
-            ++$r;
-        }
-        $sql .= ';';
-
-        return [$sql, $result->rowCount()];
     }
 
     /**

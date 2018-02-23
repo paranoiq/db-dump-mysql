@@ -8,13 +8,13 @@ use Dogma\Tools\Console;
 class DataDumper
 {
 
-    const MODE_GREEDY = 'greedy';
-    const MODE_DEPENDENCIES = 'dependencies';
-    const MODE_CONSISTENT = 'consistent';
-    const MODE_ISOLATED = 'isolated';
-    const MODE_IGNORE = 'ignore';
+    public const MODE_GREEDY = 'greedy';
+    public const MODE_DEPENDENCIES = 'dependencies';
+    public const MODE_CONSISTENT = 'consistent';
+    public const MODE_ISOLATED = 'isolated';
+    public const MODE_IGNORE = 'ignore';
 
-    const SELECT_BATCH_SIZE = 1000;
+    public const SELECT_BATCH_SIZE = 1000;
 
     /** @var \Dogma\Tools\Dumper\MysqlAdapter */
     private $db;
@@ -48,6 +48,10 @@ class DataDumper
         $this->console = $console;
     }
 
+    /**
+     * @param string[][] $dataConfig
+     * @return string[][]
+     */
     public function readDataConfig(array $dataConfig): array
     {
         $dependencies = false;
@@ -99,12 +103,17 @@ class DataDumper
         return [$dependencies, $dep];
     }
 
+    /**
+     * @param string[] $databases
+     * @return int[]
+     */
     public function scanStructure(array $databases): array
     {
         return $this->dbInfo->scanStructure($databases);
     }
 
-    public function dumpData() {
+    public function dumpData(): void
+    {
         foreach ([self::MODE_ISOLATED, self::MODE_CONSISTENT, self::MODE_GREEDY] as $runMode) {
             foreach ($this->selectors as $database => $selectors) {
                 $this->io->createOutputTypeDirectory($database, 'data');
@@ -155,7 +164,13 @@ class DataDumper
         $this->console->ln()->writeLn('Total ' . $total . ($total > 1 ? ' rows exported' : ' row exported'));
     }
 
-    private function enqueueReferrerItems(string $database, string $table, array $columns, array $values)
+    /**
+     * @param string $database
+     * @param string $table
+     * @param string[] $columns
+     * @param mixed[] $values
+     */
+    private function enqueueReferrerItems(string $database, string $table, array $columns, array $values): void
     {
         $primaryColumns = $this->dbInfo->getPrimaryColumns($database, $table);
         $primary = implode(',', array_map([$this->db, 'quoteName'], $primaryColumns));
@@ -172,7 +187,7 @@ class DataDumper
             }, $values));
         }
 
-        $query = "SELECT " . $primary . " FROM %.% WHERE " . $columnsSql . " IN (" . $valuesSql . ")";
+        $query = 'SELECT ' . $primary . ' FROM %.% WHERE ' . $columnsSql . ' IN (' . $valuesSql . ')';
 
         $result = $this->db->query($query, $database, $table);
         foreach ($result as $row) {
@@ -180,13 +195,13 @@ class DataDumper
         }
     }
 
-    private function enqueueByQuery(string $database, string $table, string $where, string $mode)
+    private function enqueueByQuery(string $database, string $table, string $where, string $mode): void
     {
         $primaryColumns = $this->dbInfo->getPrimaryColumns($database, $table);
         $primary = implode(',', array_map([$this->db, 'quoteName'], $primaryColumns));
         $query = $where
-            ? "SELECT " . $primary . " FROM %.% WHERE " . $where
-            : "SELECT " . $primary . " FROM %.%";
+            ? 'SELECT ' . $primary . ' FROM %.% WHERE ' . $where
+            : 'SELECT ' . $primary . ' FROM %.%';
 
         $result = $this->db->query($query, $database, $table);
         foreach ($result as $row) {
@@ -194,7 +209,13 @@ class DataDumper
         }
     }
 
-    private function enqueueItem(string $database, string $table, string $mode, $data)
+    /**
+     * @param string $database
+     * @param string $table
+     * @param string $mode
+     * @param mixed[] $data
+     */
+    private function enqueueItem(string $database, string $table, string $mode, array $data): void
     {
         $key = count($data) > 1 ? implode('|', $data) : reset($data);
         $value = count($data) > 1 ? array_values($data) : reset($data);
@@ -207,9 +228,8 @@ class DataDumper
         $this->todo[$mode][$database][$table][$key] = $value;
     }
 
-    private function dumpKeys(string $mode, string $database, string $table)
+    private function dumpKeys(string $mode, string $database, string $table): void
     {
-
         $primaryColumns = $this->dbInfo->getPrimaryColumns($database, $table);
         $primary = count($primaryColumns) > 1
             ? '(' . implode(',', array_map([$this->db, 'quoteName'], $primaryColumns)) . ')'
@@ -229,7 +249,7 @@ class DataDumper
             $backReferences = [];
         }
 
-        $query = sprintf("SELECT * FROM %%.%% WHERE %s IN ", $primary);
+        $query = sprintf('SELECT * FROM %%.%% WHERE %s IN ', $primary);
 
         $todo = &$this->todo[$mode][$database][$table];
         $done = &$this->done[$mode][$database][$table];
@@ -282,7 +302,12 @@ class DataDumper
         }
     }
 
-    private function writeResult(string $database, string $table, array $result)
+    /**
+     * @param string $database
+     * @param string $table
+     * @param string[][] $result
+     */
+    private function writeResult(string $database, string $table, array $result): void
     {
         $columns = $this->dbInfo->getColumns($database, $table);
 
@@ -304,6 +329,12 @@ class DataDumper
         $this->io->write($query, $database, 'data', $table);
     }
 
+    /**
+     * @param array $from
+     * @param array $to
+     * @param int $items
+     * @return string[][]
+     */
     private function take(array &$from, array &$to, int $items): array
     {
         $taken = [];
@@ -317,6 +348,7 @@ class DataDumper
                 break;
             }
         }
+
         return $taken;
     }
 
